@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
 import 'package:flutter_vcf/models/pome/response/submit_qc_sampling_pome_response.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class AddPOMEDataPage extends StatefulWidget {
   final String userId;
@@ -57,7 +58,11 @@ class _AddPOMEDataPageState extends State<AddPOMEDataPage> {
     final status = await Permission.camera.request();
     if (!status.isGranted) return;
 
-    final picked = await picker.pickImage(source: ImageSource.camera);
+    final picked = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 50, // kompres 50%
+      maxWidth: 1024,   // resize
+    );
     if (picked != null) {
       setState(() {
         switch (index) {
@@ -78,6 +83,20 @@ class _AddPOMEDataPageState extends State<AddPOMEDataPage> {
     }
   }
 
+  Future<String> compressToBase64(File img) async {
+    final compressed = await FlutterImageCompress.compressWithFile(
+      img.path,
+      quality: 40,     
+      minWidth: 800, 
+      minHeight: 800,
+      format: CompressFormat.jpeg,
+    );
+
+  
+    final finalBytes = compressed ?? await img.readAsBytes();
+
+    return "data:image/jpeg;base64,${base64Encode(finalBytes)}";
+  }
   Future<void> savePomeSample() async {
     try {
       setState(() => _isLoading = true);
@@ -85,11 +104,9 @@ class _AddPOMEDataPageState extends State<AddPOMEDataPage> {
       final photos = <String>[];
       for (final img in [_image1, _image2, _image3, _image4]) {
         if (img != null) {
-          final bytes = await img.readAsBytes();
-          photos.add("data:image/jpeg;base64,${base64Encode(bytes)}");
+          photos.add(await compressToBase64(img));
         }
       }
-
       if (photos.isEmpty) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(

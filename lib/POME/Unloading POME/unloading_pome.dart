@@ -5,6 +5,7 @@ import 'package:flutter_vcf/api_service.dart';
 import 'package:flutter_vcf/models/pome/response/unloading_pome_response.dart';
 import 'package:flutter_vcf/models/pome/unloading_pome_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'add_unloading_pome.dart';
 import 'input_unloading_pome.dart';
 
@@ -34,14 +35,29 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
     return prefs.getString("jwt_token") ?? widget.token;
   }
 
-  // ======== UI STATUS MAPPER =========
+  // ============================
+  // STATUS NORMALIZER POME
+  // ============================
+  /// Menyamakan semua status yang mungkin
+  String normalizedStatus(String? s) {
+    final v = (s ?? "").toLowerCase().trim();
 
+    if (v == "hold" || v == "unloading_hold") return "unloading_hold";
+    if (v == "approved" || v == "wb_out") return "wb_out";
+    if (v == "rejected" || v == "unloading_rejected") return "rejected";
+
+    return v;
+  }
+
+  // ============================
+  // STATUS UI MAPPER
+  // ============================
   String displayStatus(String status) {
     switch (status) {
-      case "wb_out":
-        return "APPROVED";
       case "unloading_hold":
         return "HOLD";
+      case "wb_out":
+        return "APPROVED";
       case "rejected":
         return "REJECTED";
       default:
@@ -51,10 +67,10 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
 
   Color statusColor(String status) {
     switch (status) {
-      case "wb_out":
-        return Colors.green;
       case "unloading_hold":
         return Colors.orange;
+      case "wb_out":
+        return Colors.green;
       case "rejected":
         return Colors.red;
       default:
@@ -64,10 +80,10 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
 
   IconData statusIcon(String status) {
     switch (status) {
-      case "wb_out":
-        return Icons.check_circle_outline;
       case "unloading_hold":
         return Icons.pause_circle_outline;
+      case "wb_out":
+        return Icons.check_circle_outline;
       case "rejected":
         return Icons.cancel_outlined;
       default:
@@ -75,7 +91,7 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
     }
   }
 
-  // Open Add page (choose vehicle)
+  // OPEN ADD PAGE
   Future<void> _openAddPage() async {
     final result = await Navigator.push(
       context,
@@ -89,7 +105,7 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
     if (result != null) setState(() {});
   }
 
-  // Open Input page (only when HOLD)
+  // OPEN EDIT PAGE (ONLY HOLD)
   Future<void> _openEditPage(UnloadingPomeModel model, int index) async {
     final result = await Navigator.push(
       context,
@@ -121,14 +137,15 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
       ),
 
       body: FutureBuilder<UnloadingPOMEResponse>(
-        future: _getToken().then((t) => apiService.getUnloadingPomeData("Bearer $t")),
+        future: _getToken()
+            .then((t) => apiService.getUnloadingPomeData("Bearer $t")),
         builder: (context, snapshot) {
-          // Loading
+          // LOADING
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Error
+          // ERROR
           if (snapshot.hasError) {
             log("${snapshot.error}");
             return Center(child: Text("Error: ${snapshot.error}"));
@@ -136,13 +153,19 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
 
           final trucks = snapshot.data?.data ?? [];
 
-          // Only show HOLD & FINISHED (wb_out)
+          // ==========================================
+          // FILTER DENGAN NORMALIZED STATUS
+          // ==========================================
           final unloadingTrucks = trucks.where((e) {
-            final s = e.regist_status?.toLowerCase() ?? "";
-            return s == "wb_out" || s == "unloading_hold";
+            final status = normalizedStatus(
+              (e.unloading_status ?? "").isNotEmpty
+                  ? e.unloading_status
+                  : e.regist_status,
+            );
+
+            return status == "unloading_hold" || status == "wb_out";
           }).toList();
 
-          // Empty view
           if (unloadingTrucks.isEmpty) {
             return const Center(
               child: Text(
@@ -157,25 +180,27 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
             itemBuilder: (_, index) {
               final t = unloadingTrucks[index];
 
-              final status = (t.unloading_status?.toLowerCase() ?? "").isEmpty
-                  ? (t.regist_status?.toLowerCase() ?? "")
-                  : t.unloading_status!.toLowerCase();
-
-              final isSelected = selectedIndex == index;
+              final status = normalizedStatus(
+                (t.unloading_status ?? "").isNotEmpty
+                    ? t.unloading_status
+                    : t.regist_status,
+              );
 
               return GestureDetector(
                 onTap: () {
                   if (status == "unloading_hold") {
-                    setState(() => selectedIndex = index);
                     _openEditPage(t, index);
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Status selesai — tidak dapat dibuka")),
+                      const SnackBar(
+                        content: Text("Status selesai — tidak dapat dibuka"),
+                      ),
                     );
                   }
                 },
                 child: Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   elevation: 2,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -202,11 +227,14 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
                               style: const TextStyle(fontSize: 15),
                             ),
 
+                            // STATUS BADGE
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
                                 color: statusColor(status).withOpacity(0.15),
-                                border: Border.all(color: statusColor(status)),
+                                border:
+                                    Border.all(color: statusColor(status)),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -226,7 +254,7 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
                                   ),
                                 ],
                               ),
-                            )
+                            ),
                           ],
                         ),
                       ],

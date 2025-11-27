@@ -41,36 +41,44 @@ class _InputLabCPOPageState extends State<InputLabCPOPage> {
   final ImagePicker picker = ImagePicker();
 
   @override
-void initState() {
-  super.initState();
-  final dio = Dio()
-    ..interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (obj) => debugPrint(obj.toString()),
-    ));
-  api = ApiService(dio);
+  void initState() {
+    super.initState();
+    final dio = Dio()
+      ..interceptors.add(LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (obj) => debugPrint(obj.toString()),
+      ));
+    api = ApiService(dio);
 
-  final status = (widget.model.lab_status ?? "").toLowerCase();
-  isHoldCase = status == "hold";
+  debugPrint("lab_status: ${widget.model.lab_status}");
+  debugPrint("regist_status: ${widget.model.regist_status}");
+  
+   final rawStatus = (widget.model.lab_status ?? widget.model.regist_status ?? "")
+    .toLowerCase();
 
-  if (isHoldCase) {
-    
-    isQcEnabled = true;
-    isQcCheckboxEnabled = true;
-    _loadHoldData();
-  } else {
-    isQcEnabled = true;
-    isQcCheckboxEnabled = false;
+    isHoldCase = rawStatus.contains("hold");
+
+  debugPrint("rawStatus = $rawStatus");
+  debugPrint("isHoldCase = $isHoldCase");
+
+
+    if (isHoldCase) {
+      isQcEnabled = true;
+      isQcCheckboxEnabled = true;
+      _loadHoldData();  
+    } else {
+      isQcEnabled = true;
+      isQcCheckboxEnabled = false;
+    }
+
+
+    debugPrint("=== INIT InputLabCPOPage ===");
+    debugPrint("Token: ${widget.token}");
+    debugPrint("Registration ID: ${widget.model.registration_id}");
+    debugPrint("Lab Status: ${widget.model.lab_status}");
+    debugPrint("=============================");
   }
-
-  debugPrint("=== INIT InputLabCPOPage ===");
-  debugPrint("Token: ${widget.token}");
-  debugPrint("Registration ID: ${widget.model.registration_id}");
-  debugPrint("Lab Status: ${widget.model.lab_status}");
-  debugPrint("=============================");
-}
-
 
   @override
   void dispose() {
@@ -82,6 +90,7 @@ void initState() {
     super.dispose();
   }
 
+  /// Load data ketika tiket HOLD → isi lagi FFA, Moisture, DOBI, IV, Remarks
   Future<void> _loadHoldData() async {
     try {
       debugPrint("Load Hold Data untuk ${widget.model.registration_id}");
@@ -97,6 +106,9 @@ void initState() {
           dobCtrl.text = "${res.data!.dobi ?? ""}";
           ivCtrl.text = "${res.data!.iv ?? ""}";
           remarksCtrl.text = "${res.data!.remarks ?? ""}";
+          // Foto sengaja TIDAK di-load kembali (sesuai permintaan),
+          // supaya ketika HOLD dibuka lagi, user input foto baru.
+          _image1 = _image2 = _image3 = _image4 = null;
         });
       }
     } catch (e) {
@@ -134,7 +146,10 @@ void initState() {
   }
 
   bool _hasAtLeastOnePhoto() {
-    return _image1 != null || _image2 != null || _image3 != null || _image4 != null;
+    return _image1 != null ||
+        _image2 != null ||
+        _image3 != null ||
+        _image4 != null;
   }
 
   bool _validateInputs() {
@@ -160,21 +175,26 @@ void initState() {
       return false;
     }
 
-    // Validasi nilai masuk akal
-    if (ffa < 0 || ffa > 100 ||
-        moisture < 0 || moisture > 100 ||
-        dobi < 0 || dobi > 10 ||
-        iv < 0 || iv > 1000) {
+    // Validasi range masuk akal
+    if (ffa < 0 ||
+        ffa > 100 ||
+        moisture < 0 ||
+        moisture > 100 ||
+        dobi < 0 ||
+        dobi > 10 ||
+        iv < 0 ||
+        iv > 1000) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Data yang dimasukin tidak sesuai standar")),
       );
       return false;
     }
 
-    // Validasi minimal 1 foto
+    // Harus minimal 1 foto
     if (!_hasAtLeastOnePhoto()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ambil minimal 1 foto hasil lab sebelum lanjut")),
+        const SnackBar(
+            content: Text("Ambil minimal 1 foto hasil lab sebelum lanjut")),
       );
       return false;
     }
@@ -199,14 +219,15 @@ void initState() {
         }
       }
 
-      String adjustedRegistStatus = (widget.model.regist_status ?? "").toLowerCase();
+      String adjustedRegistStatus =
+          (widget.model.regist_status ?? "").toLowerCase();
       if (adjustedRegistStatus == "qc_lab_hold") {
         adjustedRegistStatus = "qc_lab";
       }
 
       final payload = {
         "registration_id": widget.model.registration_id,
-        "regist_status": adjustedRegistStatus, 
+        "regist_status": adjustedRegistStatus,
         "ffa": double.parse(ffaCtrl.text.replaceAll(',', '.')),
         "moisture": double.parse(moistCtrl.text.replaceAll(',', '.')),
         "dobi": double.parse(dobCtrl.text.replaceAll(',', '.')),
@@ -216,7 +237,6 @@ void initState() {
         if (photos.isNotEmpty) "photos": photos,
       };
 
-
       debugPrint("Payload dikirim:");
       debugPrint(const JsonEncoder.withIndent('  ').convert(payload));
 
@@ -225,7 +245,9 @@ void initState() {
       if (!mounted) return;
       if (res.success == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("QC Lab ${status.toUpperCase()} berhasil dikirim")),
+          SnackBar(
+              content: Text(
+                  "QC Lab ${status.toUpperCase()} berhasil dikirim")),
         );
         Navigator.pop(context, {
           "registration_id": widget.model.registration_id,
@@ -241,7 +263,9 @@ void initState() {
     } on DioException catch (e) {
       debugPrint("DioException: ${e.response?.data}");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: ${e.response?.data['message'] ?? e.message}")),
+        SnackBar(
+            content:
+                Text("Error: ${e.response?.data['message'] ?? e.message}")),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -252,7 +276,7 @@ void initState() {
     }
   }
 
-  void _confirm(String title, String msg, String status) {
+ void _confirm(String title, String msg, String status) {
     if (!_validateInputs()) return;
 
     showDialog(
@@ -262,8 +286,20 @@ void initState() {
         content: Text(msg),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text("Tidak")),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Tidak"),
+          ),
           TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
             onPressed: () {
               Navigator.pop(context);
               _submit(status);
@@ -278,8 +314,8 @@ void initState() {
   @override
   Widget build(BuildContext context) {
     final info = {
-      "Nomor Tiket Timbang": widget.model.wb_ticket_no ?? "-",
       "Plat Kendaraan": widget.model.plate_number ?? "-",
+      "Nomor Tiket Timbang": widget.model.wb_ticket_no ?? "-",
       "Supir": widget.model.driver_name ?? "-",
       "Kode Komoditi": widget.model.commodity_code ?? "-",
       "Nama Komoditi": widget.model.commodity_name ?? "-",
@@ -297,50 +333,114 @@ void initState() {
           ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              ...info.entries.map((e) => _readonlyBox(e.key, e.value)),
+              _plateWidget(widget.model.plate_number ?? "-"),
+              _readonlyBox("Nomor Tiket Timbang", widget.model.wb_ticket_no ?? "-"),
+              _readonlyBox("Supir", widget.model.driver_name ?? "-"),
+              _readonlyBox("Kode Komoditi", widget.model.commodity_code ?? "-"),
+              _readonlyBox("Nama Komoditi", widget.model.commodity_name ?? "-"),
+              _readonlyBox("Kode Vendor", widget.model.vendor_code ?? "-"),
+              _readonlyBox("Nama Vendor", widget.model.vendor_name ?? "-"),
+
               const SizedBox(height: 10),
-              CheckboxListTile(
-                value: isQcEnabled,
-                title: const Text("Input QC Data"),
-                onChanged: isQcCheckboxEnabled
-                    ? (v) {
-                        setState(() {
-                          isQcEnabled = v ?? false;
-                          if (!isQcEnabled) {
-                            isCameraEnabled = false;
-                            _image1 = _image2 = _image3 = _image4 = null;
-                          }
-                        });
-                      }
-                    : null,
+
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  "Input QC Data",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
               ),
-              _numberInput("FFA (%)", ffaCtrl),
-              _numberInput("Moisture (%)", moistCtrl),
-              _numberInput("DOBI", dobCtrl),
-              _numberInput("IV", ivCtrl),
-              _input("Remarks", remarksCtrl, maxLines: 2),
-              CheckboxListTile(
-                value: isCameraEnabled,
-                title: const Text("Ambil Gambar Hasil Lab"),
-                onChanged: isQcEnabled
-                    ? (v) => setState(() => isCameraEnabled = v ?? false)
-                    : null,
-              ),
+
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _cameraBox(1, _image1),
-                  _cameraBox(2, _image2),
-                  _cameraBox(3, _image3),
-                  _cameraBox(4, _image4),
+                  Expanded(child: _numberField("FFA (%)", ffaCtrl)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _numberField("Moisture (%)", moistCtrl)),
                 ],
               ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: _numberField("DOBI", dobCtrl)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _numberField("IV", ivCtrl)),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Remarks full width
+              _input("Remarks", remarksCtrl, maxLines: 2),
+
+              const SizedBox(height: 12),
+
+              // ======================
+              // KOTAK BESAR FOTO LAB
+              // ======================
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.black26),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Ambil Gambar Hasil Lab",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Checkbox(
+                          value: isCameraEnabled,
+                          onChanged: isQcEnabled
+                              ? (v) {
+                                  setState(() {
+                                    isCameraEnabled = v ?? false;
+                                    if (!isCameraEnabled) {
+                                      _image1 = _image2 =
+                                          _image3 = _image4 = null;
+                                    }
+                                  });
+                                }
+                              : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: _cameraBox(1, _image1)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _cameraBox(2, _image2)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _cameraBox(3, _image3)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _cameraBox(4, _image4)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _btn("Hold", Colors.orange,
-                      () => _confirm("Hold", "Tahan QC?", "hold")),
+                 _btn(
+                      "Hold",
+                      Colors.orange,
+                      () => _confirm("Hold", "Tahan QC?", "hold"),
+                      disabled: isHoldCase, // 🔥 otomatis disable kalau sudah HOLD
+                    ),
                   _btn("Approve", Colors.green,
                       () => _confirm("Approve", "Setujui QC?", "approved")),
                   _btn("Reject", Colors.red,
@@ -349,6 +449,7 @@ void initState() {
               ),
             ],
           ),
+
           if (_isSubmitting)
             Container(
               color: Colors.black45,
@@ -381,6 +482,30 @@ void initState() {
         ),
       );
 
+  Widget _plateWidget(String plate) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Plat Kendaraan",
+            style: TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            plate,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   Widget _input(String label, TextEditingController c, {int maxLines = 1}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -398,13 +523,15 @@ void initState() {
     );
   }
 
-  Widget _numberInput(String label, TextEditingController c) {
+  /// Field angka untuk grid 2 kolom
+  Widget _numberField(String label, TextEditingController c) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: TextField(
         controller: c,
         readOnly: !isQcEnabled,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        keyboardType:
+            const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
         ],
@@ -420,26 +547,40 @@ void initState() {
 
   Widget _cameraBox(int i, File? f) => GestureDetector(
         onTap: isCameraEnabled ? () => _getImage(i) : null,
-        child: Container(
-          width: 70,
-          height: 90,
-          decoration: BoxDecoration(
-            border: Border.all(),
-            borderRadius: BorderRadius.circular(8),
-            color: isCameraEnabled ? Colors.white : Colors.grey.shade400,
+        child: AspectRatio(
+          aspectRatio: 3 / 4,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(),
+              borderRadius: BorderRadius.circular(8),
+              color: isCameraEnabled ? Colors.white : Colors.grey.shade400,
+            ),
+            child: f == null
+                ? const Icon(Icons.camera_alt)
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      f,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
           ),
-          child: f == null
-              ? const Icon(Icons.camera_alt)
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(f, fit: BoxFit.cover),
-                ),
         ),
       );
 
-  Widget _btn(String label, Color color, VoidCallback onPressed) => ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: color),
-        onPressed: _isSubmitting || !isQcEnabled ? null : onPressed,
-        child: Text(label),
-      );
+  Widget _btn(
+    String label,
+    Color color,
+    VoidCallback onPressed, {
+    bool disabled = false,
+  }) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: disabled ? Colors.grey : color,
+      ),
+      onPressed: disabled || _isSubmitting || !isQcEnabled ? null : onPressed,
+      child: Text(label),
+    );
+  }
+
 }

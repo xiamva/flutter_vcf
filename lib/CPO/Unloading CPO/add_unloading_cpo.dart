@@ -39,7 +39,8 @@ class _AddUnloadingCPOPageState extends State<AddUnloadingCPOPage> {
 
   void _loadData() async {
     final token = await _getToken();
-    final apiService = ApiService(Dio(BaseOptions(contentType: "application/json")));
+    final apiService =
+        ApiService(Dio(BaseOptions(contentType: "application/json")));
 
     setState(() {
       futureVehicles = apiService.getPosts("Bearer $token");
@@ -55,7 +56,7 @@ class _AddUnloadingCPOPageState extends State<AddUnloadingCPOPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => _loadData(), // Tidak reset dropdown
+            onPressed: _loadData,
           ),
         ],
       ),
@@ -63,7 +64,7 @@ class _AddUnloadingCPOPageState extends State<AddUnloadingCPOPage> {
       body: FutureBuilder<UnloadingCPOResponse>(
         future: futureVehicles,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -73,26 +74,30 @@ class _AddUnloadingCPOPageState extends State<AddUnloadingCPOPage> {
 
           final data = snapshot.data?.data ?? [];
 
-          final readyVehicles = data.where((e) =>
-              (e.regist_status ?? "").toLowerCase() == "unloading"
-          ).toList();
+          // ==========
+          // Show ONLY vehicles with regist_status = "unloading"
+          // ==========
+          final readyVehicles = data.where((e) {
+            final status = (e.regist_status ?? "").toLowerCase();
+            return status == "unloading";
+          }).toList();
 
-          final uniquePlates = readyVehicles
-              .map((e) => e.plate_number)
-              .toSet()
-              .toList();
-
-          if (selectedPlat != null && !uniquePlates.contains(selectedPlat)) {
-            selectedPlat = null;
-          }
+          // Unique plat
+          final uniquePlates =
+              readyVehicles.map((e) => e.plate_number).toSet().toList();
 
           if (readyVehicles.isEmpty) {
             return const Center(
               child: Text(
                 "Tidak ada kendaraan yang siap unloading.",
-                style: TextStyle(color: Colors.black54),
+                style: TextStyle(color: Colors.black54, fontSize: 15),
               ),
             );
+          }
+
+          // reset selectedPlat if not valid after refresh
+          if (selectedPlat != null && !uniquePlates.contains(selectedPlat)) {
+            selectedPlat = null;
           }
 
           return Padding(
@@ -102,9 +107,9 @@ class _AddUnloadingCPOPageState extends State<AddUnloadingCPOPage> {
               children: [
                 const Text(
                   'Silakan Pilih Plat Kendaraan yang Siap Unloading',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(
@@ -113,50 +118,56 @@ class _AddUnloadingCPOPageState extends State<AddUnloadingCPOPage> {
                   ),
                   value: selectedPlat,
                   items: uniquePlates.map((plate) {
-                    final v = readyVehicles.firstWhere((e) => e.plate_number == plate);
+                    final item =
+                        readyVehicles.firstWhere((e) => e.plate_number == plate);
+
                     return DropdownMenuItem(
                       value: plate,
-                      child: Text("$plate (${v.wb_ticket_no})"),
+                      child: Text("$plate (${item.wb_ticket_no})"),
                     );
                   }).toList(),
-                  onChanged: (value) => setState(() => selectedPlat = value),
+                  onChanged: (value) {
+                    setState(() => selectedPlat = value);
+                  },
                 ),
 
                 const SizedBox(height: 25),
 
                 Center(
                   child: ElevatedButton.icon(
+                    icon: const Icon(Icons.arrow_forward, color: Colors.white),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 12,
+                      ),
                     ),
-                    icon: const Icon(Icons.arrow_forward, color: Colors.white),
                     label: const Text(
                       "Lanjut ke Input Unloading",
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: Colors.white, fontSize: 14),
                     ),
                     onPressed: selectedPlat == null
-                      ? null
-                      : () async {
-                          final kendaraan = readyVehicles.firstWhere(
-                            (item) => item.plate_number == selectedPlat,
-                          );
+                        ? null
+                        : () async {
+                            final kendaraan = readyVehicles.firstWhere(
+                              (item) => item.plate_number == selectedPlat,
+                            );
 
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => InputUnloadingCPOPage(
-                                model: kendaraan,
-                                token: widget.token,
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => InputUnloadingCPOPage(
+                                  model: kendaraan,
+                                  token: widget.token,
+                                ),
                               ),
-                            ),
-                          );
+                            );
 
-                          if (result != null) {
-                            Navigator.pop(context, result); // ⬅Kembalikan data ke Dashboard
-                          }
-                        },
-
+                            if (result != null) {
+                              Navigator.pop(context, result);
+                            }
+                          },
                   ),
                 )
               ],

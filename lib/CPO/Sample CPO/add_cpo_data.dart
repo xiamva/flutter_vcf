@@ -87,7 +87,9 @@ class _AddCPODataPageState extends State<AddCPODataPage> {
       for (final img in [_image1, _image2, _image3, _image4]) {
         if (img != null) {
           final bytes = await img.readAsBytes();
-          photos.add("data:image/jpeg;base64,${base64Encode(bytes)}");
+
+          // backend hanya menerima RAW BASE64 (tanpa data:image/jpeg;base64,)
+          photos.add(base64Encode(bytes));
         }
       }
 
@@ -101,7 +103,7 @@ class _AddCPODataPageState extends State<AddCPODataPage> {
 
       final payload = {
         "registration_id": widget.registrationId,
-        "photos": photos,
+        "photos": photos, // RAW BASE64 ARRAY
       };
 
       final SubmitQcSamplingResponse res =
@@ -123,7 +125,6 @@ class _AddCPODataPageState extends State<AddCPODataPage> {
           const SnackBar(content: Text("Sample tersimpan dan foto diupload")),
         );
 
-        // Kembali ke halaman SampleQC, kirim data tiket
         Navigator.pop(context, {
           "registration_id": widget.registrationId,
           "tiket_no": widget.tiketNo,
@@ -175,7 +176,7 @@ class _AddCPODataPageState extends State<AddCPODataPage> {
   @override
   Widget build(BuildContext context) {
     final info = {
-      "Nomor Tiket Timbang": widget.tiketNo,
+      "Nomor Tiket Timbang": widget.tiketNo, 
       "Plat Kendaraan": widget.platKendaraan,
       "Supir": widget.driver,
       "Kode Komoditi": widget.commodityCode,

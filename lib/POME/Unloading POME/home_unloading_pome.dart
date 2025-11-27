@@ -48,7 +48,7 @@ class _HomeUnloadingPOMEPageState extends State<HomeUnloadingPOMEPage> {
     try {
       final token = await _getToken();
 
-      // Pastikan endpoint getUnloadingPomeStatistics() sudah ditambahkan di api_service.dart
+    
       final res = await api.getUnloadingPomeStatistics(
         "Bearer $token",
         dateFrom: "2025-01-01",
@@ -64,6 +64,7 @@ class _HomeUnloadingPOMEPageState extends State<HomeUnloadingPOMEPage> {
         sudahUnloading = stats?.truk_sudah_unloading ?? 0;
         totalKeluar = stats?.total_truk_keluar ?? 0;
         // lastUpdate = period?.to ?? "-";
+        lastUpdate = DateTime.now().toString();
         isLoading = false;
       });
     } catch (e) {
@@ -83,7 +84,7 @@ class _HomeUnloadingPOMEPageState extends State<HomeUnloadingPOMEPage> {
             const Text("Home VCF", style: TextStyle(color: Colors.white)),
             const SizedBox(width: 5),
 
-            // 🔹 Dropdown Navigasi
+            //Dropdown Navigasi
             DropdownButton<String>(
               dropdownColor: Colors.blue[100],
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white),

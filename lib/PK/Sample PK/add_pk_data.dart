@@ -1,177 +1,284 @@
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_vcf/PK/Sample%20PK/sample_qc_pk.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/models/pk/response/qc_sampling_pk_sample_response.dart';
 
-class AddPkData extends StatefulWidget {
+class AddPKDataPage extends StatefulWidget {
+  final String userId;
+  final String token;
+  final String registrationId;
   final String platKendaraan;
-  const AddPkData({super.key, required this.platKendaraan});
+  final String tiketNo;
+  final String vendorCode;
+  final String vendorName;
+  final String commodityCode;
+  final String commodityName;
+
+  const AddPKDataPage({
+    super.key,
+    required this.userId,
+    required this.token,
+    required this.registrationId,
+    required this.platKendaraan,
+    required this.tiketNo,
+    required this.vendorCode,
+    required this.vendorName,
+    required this.commodityCode,
+    required this.commodityName,
+  });
 
   @override
-  State<AddPkData> createState() => _AddPkDataState();
+  State<AddPKDataPage> createState() => _AddPKDataPageState();
 }
 
-class _AddPkDataState extends State<AddPkData> {
-  File? _image1;
-  File? _image2;
-  File? _image3;
-  File? _image4;
-  File? _image5;
-  
-  bool _isCameraEnabled = false; // kontrol checkbox
+class _AddPKDataPageState extends State<AddPKDataPage> {
+  late ApiService api;
+  bool loading = true;
 
-  final ImagePicker picker = ImagePicker();
+  List<QcSamplingPkRecord> records = [];
 
-  Future<void> _getImage(int index) async {
-    if (!_isCameraEnabled) return; // kalau tidak diceklis, jangan jalan
+  int? activeCounter;
+  List<File?> newPhotos = List<File?>.filled(4, null);
+  List<bool> sectionChecked = [false, false, false];
 
-    var cameraStatus = await Permission.camera.request();
-    var photosStatus = await Permission.photos.request();
+  final picker = ImagePicker();
 
-    if (cameraStatus.isGranted && photosStatus.isGranted) {
-      final pickedFile = await picker.pickImage(source: ImageSource.camera);
+  @override
+  void initState() {
+    super.initState();
+    api = ApiService(Dio());
+    loadDetail();
+  }
 
-      if (pickedFile != null) {
-        setState(() {
-          switch (index) {
-            case 1:
-              _image1 = File(pickedFile.path);
-              break;
-            case 2:
-              _image2 = File(pickedFile.path);
-              break;
-            case 3:
-              _image3 = File(pickedFile.path);
-              break;
-            case 4:
-              _image4 = File(pickedFile.path);
-              break;
-            case 5:
-              _image5 = File(pickedFile.path);
-              break;
-          }
-        });
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Izin kamera & foto dibutuhkan")),
+  Future<void> loadDetail() async {
+    try {
+      final res = await api.getQcSamplingPkSample(
+        "Bearer ${widget.token}",
+        widget.registrationId,
       );
+
+      final rawRecords = res.data?.sampling_records ?? <QcSamplingPkRecord>[];
+
+      int? tmpActive;
+      if (rawRecords.isEmpty) {
+        // belum ada sampling sama sekali → counter 0 aktif
+        tmpActive = 0;
+      } else {
+        final pending =
+            rawRecords.where((r) => r.sampled_at == null).toList();
+        if (pending.isNotEmpty) {
+          tmpActive = pending.first.counter;
+        } else {
+          tmpActive = null;
+        }
+      }
+
+      setState(() {
+        records = rawRecords;
+        activeCounter = tmpActive;
+        newPhotos = List<File?>.filled(4, null);
+        sectionChecked = [false, false, false];
+        loading = false;
+      });
+    } catch (e) {
+      setState(() => loading = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Load error: $e")));
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final String tiketTimbang = '';
-    final String namaSupir = '';
-    final String kodeKomoditi = '';
-    final String namaKomoditi = '';
-    final String kodeVendor = '';
-    final String namaVendor = '';
+  Future<void> pickPhoto(int index) async {
+    if (activeCounter == null) return;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tambah Sample QC'),
-        backgroundColor: Colors.blue,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ListView(
-          children: [
-            Text('Plat Kendaraan', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(widget.platKendaraan, style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 16),
+    final cam = await Permission.camera.request();
+    if (!cam.isGranted) return;
 
-            _buildReadOnlyField('Tiket Timbang', tiketTimbang),
-            _buildReadOnlyField('Supir', namaSupir),
-            _buildReadOnlyField('Kode Komoditi', kodeKomoditi),
-            _buildReadOnlyField('Nama Komoditi', namaKomoditi),
-            _buildReadOnlyField('Kode Vendor', kodeVendor),
-            _buildReadOnlyField('Nama Vendor', namaVendor),
+    final picked = await picker.pickImage(source: ImageSource.camera);
+    if (picked != null) {
+      setState(() {
+        newPhotos[index] = File(picked.path);
+      });
+    }
+  }
 
-            const SizedBox(height: 16),
+  Future<void> submitSample() async {
+    if (activeCounter == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Tidak ada sample pending.")),
+      );
+      return;
+    }
 
-            // ✅ Checkbox bisa dicentang
-            CheckboxListTile(
-              value: _isCameraEnabled,
-              activeColor: Colors.green,
-              title: const Text('Ambil Gambar'),
-              controlAffinity: ListTileControlAffinity.leading,
-              onChanged: (val) {
-                setState(() {
-                  _isCameraEnabled = val ?? false;
+    final filledCount = newPhotos.where((f) => f != null).length;
+    if (filledCount < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Minimal 2 foto wajib di-upload.")),
+      );
+      return;
+    }
 
-                  // Optional: reset gambar kalau uncheck
-                  if (!_isCameraEnabled) {
-                    _image1 = null;
-                    _image2 = null;
-                    _image3 = null;
-                    _image4 = null;
-                    _image5 = null;
-                  }
-                });
-              },
-            ),
+    final encodedPhotos = newPhotos
+        .where((f) => f != null)
+        .map((f) => base64Encode(f!.readAsBytesSync()))
+        .toList();
 
-            const SizedBox(height: 16),
+    final payload = {
+      "registration_id": widget.registrationId,
+      "photos": encodedPhotos,
+    };
 
-            // Layout kamera 1-2-2
-            Column(
-              children: [
-                // Baris pertama: 1 kamera
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildImagePickerBox(1, _image1),
-                  ],
-                ),
-                const SizedBox(height: 16),
+    try {
+      await api.submitQcSamplingPK("Bearer ${widget.token}", payload);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SampleQCPKPage(
+            userId: widget.userId,
+            token: widget.token,
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Submit error: $e")));
+    }
+  }
 
-                // Baris kedua: 2 kamera
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildImagePickerBox(2, _image2),
-                    _buildImagePickerBox(3, _image3),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Baris ketiga: 2 kamera
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildImagePickerBox(4, _image4),
-                    _buildImagePickerBox(5, _image5),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  debugPrint("Image1: $_image1");
-                  debugPrint("Image2: $_image2");
-                  debugPrint("Image3: $_image3");
-                  debugPrint("Image4: $_image4");
-                  debugPrint("Image5: $_image5");
-                  // TODO: simpan ke database / server
-                },
-                child: const Text('Simpan'),
+  Future<void> _showConfirmDialog() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            "Konfirmasi Simpan",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: const Text("Apakah anda yakin menyimpan data Sample QC?"),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, false),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
+              child: const Text("Tidak"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
+              ),
+              child: const Text("Ya"),
             ),
           ],
+        );
+      },
+    );  
+
+    if (confirm == true) {
+      submitSample();
+    }
+  }
+
+  /// foto lama (readonly) 
+Widget _oldPhotoBox(QcSamplingPkPhoto p) {
+  final String url = p.url;
+
+  if (url.isEmpty) {
+    return const Icon(Icons.broken_image);
+  }
+  final fixedUrl = Uri.parse(url).toString();
+
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(8),
+    child: Image.network(
+      fixedUrl,
+      fit: BoxFit.cover,
+      headers: {"Connection": "close"},
+      errorBuilder: (BuildContext context, Object exception, StackTrace? stackTrace) {
+        debugPrint('Image.network load error: $exception');
+        if (stackTrace != null) debugPrint(stackTrace.toString());
+
+        return const Icon(Icons.broken_image);
+      },
+    ),
+  );
+}
+
+
+
+
+ 
+  Widget _photoBoxPK(int index, bool enabled) {
+    final img = newPhotos[index];
+
+    return GestureDetector(
+      onTap: enabled ? () => pickPhoto(index) : null,
+      child: Container(
+        width: 70,
+        height: 100,
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        decoration: BoxDecoration(
+          color: enabled ? Colors.white : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: enabled ? Colors.grey.shade400 : Colors.grey.shade500,
+          ),
         ),
+        child: img == null
+            ? Icon(
+                Icons.camera_alt,
+                size: 24,
+                color: enabled ? Colors.black54 : Colors.grey.shade600,
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.file(img, fit: BoxFit.cover),
+              ),
       ),
     );
   }
 
-  Widget _buildReadOnlyField(String label, String value) {
+  Widget _newPhotoBox(int index, bool enabled) {
+    final f = newPhotos[index];
+    return GestureDetector(
+      onTap: enabled ? () => pickPhoto(index) : null,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: enabled ? Colors.black45 : Colors.grey.shade400,
+          ),
+          borderRadius: BorderRadius.circular(8),
+          color: enabled ? Colors.white : Colors.grey.shade300,
+        ),
+        child: f == null
+            ? Icon(
+                Icons.camera_alt,
+                size: 28,
+                color: enabled ? Colors.grey[800] : Colors.grey[500],
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(f, fit: BoxFit.cover),
+              ),
+      ),
+    );
+  }
+
+  Widget _readonlyField(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -179,15 +286,16 @@ class _AddPkDataState extends State<AddPkData> {
           const SizedBox(height: 4),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            padding:
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
-              border: Border.all(color: Colors.black54),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade400),
+              color: Colors.grey.shade200,
             ),
             child: Text(
-              value.isEmpty ? '"$label"' : value,
-              style: const TextStyle(color: Colors.black87),
+              value,
+              style: const TextStyle(fontSize: 14),
             ),
           ),
         ],
@@ -195,26 +303,180 @@ class _AddPkDataState extends State<AddPkData> {
     );
   }
 
-  Widget _buildImagePickerBox(int index, File? imageFile) {
-    final bool isEnabled = _isCameraEnabled;
-    return GestureDetector(
-      onTap: isEnabled ? () => _getImage(index) : null,
-      child: Container(
-        width: 100,
-        height: 100,
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black54),
-          borderRadius: BorderRadius.circular(6),
-          color: isEnabled ? Colors.grey[100] : Colors.grey[400],
-        ),
-        child: imageFile == null
-            ? Icon(Icons.camera_alt,
-                size: 32, color: isEnabled ? Colors.black : Colors.black45)
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Image.file(imageFile, fit: BoxFit.cover),
+  /// record berdasarkan counter
+  QcSamplingPkRecord? _record(int counter) {
+    try {
+      return records.firstWhere((r) => r.counter == counter);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _section(int counter) {
+    final record = _record(counter);
+    final List<QcSamplingPkPhoto> photos = record?.photos ?? [];
+
+    bool show = false;
+
+    if (counter == 0) {
+      show = true;
+    } else {
+      if (record != null || activeCounter == counter) {
+        show = true;
+      }
+    }
+    if (!show) return const SizedBox.shrink();
+
+    final bool isReadonly =
+        photos.isNotEmpty && record?.sampled_at != null;
+
+    String title;
+    if (counter == 0) {
+      title = "Ambil Gambar Sampling";
+    } else if (counter == 1) {
+      title = "Ambil Gambar Re-Sample 1";
+    } else {
+      title = "Ambil Gambar Re-Sample 2";
+    }
+
+    // checkbox hanya relevan kalau section ini yang aktif dan belum readonly
+    final bool isActiveEditable =
+        !isReadonly && activeCounter == counter;
+
+    final bool checkboxValue = sectionChecked[counter];
+
+    final bool enableCapture = isActiveEditable && checkboxValue;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
+            ),
+            if (isActiveEditable)
+              Checkbox(
+                value: checkboxValue,
+                onChanged: (val) {
+                  setState(() {
+                    sectionChecked[counter] = val ?? false;
+                  });
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        if (isReadonly)
+          // Tampilkan foto lama (readonly)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black26),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: 1,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+              ),
+              itemCount: photos.length,
+              itemBuilder: (_, i) => _oldPhotoBox(photos[i]),
+            ),
+          )
+        else if (isActiveEditable)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black45),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _photoBoxPK(0, enableCapture),
+                _photoBoxPK(1, enableCapture),
+                _photoBoxPK(2, enableCapture),
+                _photoBoxPK(3, enableCapture),
+              ],
+            ),
+          )
+        else
+          // section non-aktif / belum diminta resampling
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(10),
+              color: Colors.grey.shade100,
+            ),
+            child: const Text(
+              "Menunggu permintaan re-sampling.",
+              style: TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Input Sample PK"),
+        backgroundColor: Colors.blue,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _readonlyField("Plat Kendaraan", widget.platKendaraan),
+          _readonlyField("Tiket Timbang", widget.tiketNo),
+          _readonlyField("Kode Vendor", widget.vendorCode),
+          _readonlyField("Nama Vendor", widget.vendorName),
+          _readonlyField("Kode Komoditi", widget.commodityCode),
+          _readonlyField("Nama Komoditi", widget.commodityName),
+          _section(0),
+          _section(1),
+          _section(2),
+          const SizedBox(height: 25),
+          ElevatedButton(
+            onPressed: activeCounter != null ? _showConfirmDialog : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  activeCounter != null ? Colors.blue : Colors.grey,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: Text(
+              activeCounter == null
+                  ? "Semua Sample Lengkap"
+                  : "Simpan Sample",
+            ),
+          ),
+        ],
       ),
     );
   }

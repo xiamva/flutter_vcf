@@ -21,7 +21,7 @@ class LabDetailData {
   final String? dobi;
   final String? iv;
   final String? remarks;
-  final String? status; // hold/approved/rejected
+  final String? status; 
 
   LabDetailData({
     this.ffa,

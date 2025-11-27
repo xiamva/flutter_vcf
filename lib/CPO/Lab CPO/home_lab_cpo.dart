@@ -54,7 +54,7 @@ class _HomeLabCPOPageState extends State<HomeLabCPOPage> {
         belumCekLab = stats?.truk_belum_cek_lab ?? 0;
         sudahCekLab = stats?.truk_sudah_cek_lab ?? 0;
         totalKeluar = stats?.total_truk_keluar ?? 0;
-        lastUpdate = period?.to ?? "-";
+        lastUpdate = DateTime.now().toString();
         isLoading = false;
       });
     } catch (e) {

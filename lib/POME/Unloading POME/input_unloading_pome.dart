@@ -1,8 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
 import 'package:flutter_vcf/models/pome/unloading_pome_model.dart';
+import 'package:flutter_vcf/models/master/response/master_tank_response.dart';
+import 'package:flutter_vcf/models/master/response/master_hole_response.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -22,32 +25,114 @@ class InputUnloadingPOMEPage extends StatefulWidget {
 
 class _InputUnloadingPOMEPageState extends State<InputUnloadingPOMEPage> {
   final TextEditingController remarksCtrl = TextEditingController();
-  final TextEditingController tankNoCtrl = TextEditingController();
-  final TextEditingController holeNoCtrl = TextEditingController();
+  final double baseFont = 15;
+
+  bool disableHoldButton = false;
+  bool unloadingStarted = false;
+  bool _isSubmitting = false;
+  bool _isCameraEnabled = false;
+  bool isReadOnly = false;
 
   File? _image1, _image2, _image3, _image4;
-  bool _isCameraEnabled = false;
-  bool _isSubmitting = false;
-  bool unloadingStarted = false;
 
   final ImagePicker picker = ImagePicker();
+  late Dio _dio;
   late ApiService api;
+
+  List<TankItem> tanks = [];
+  List<HoleItem> holes = [];
+  int? selectedTankId;
+  int? selectedHoleId;
+
+  /// URL foto yang sudah tersimpan (kalau tiket HOLD)
+  List<String> _existingPhotos = [];
 
   @override
   void initState() {
     super.initState();
-
-    final dio = Dio()
+    _dio = Dio()
+      ..options.baseUrl = 'http://172.30.64.69:8000/api/'
       ..interceptors.add(LogInterceptor(
         request: true,
+        requestHeader: true,
         requestBody: true,
         responseBody: true,
       ));
-    api = ApiService(dio);
+    api = ApiService(_dio);
+
+    _loadMasterData();
+    _loadExistingUnloadingIfHold();
+  }
+
+  bool _isHoldTicket() {
+    final unloadingStatus =
+        (widget.model.unloading_status ?? '').toLowerCase().trim();
+    final registStatus =
+        (widget.model.regist_status ?? '').toLowerCase().trim();
+
+    if (unloadingStatus == 'hold' || unloadingStatus == 'unloading_hold') {
+      return true;
+    }
+    if (registStatus == 'unloading_hold') return true;
+    return false;
+  }
+
+  Future<void> _loadExistingUnloadingIfHold() async {
+    if (!_isHoldTicket()) return;
+
+    try {
+      final detail = await api.getUnloadingPomeDetail(
+        "Bearer ${widget.token}",
+        widget.model.registration_id!,
+      );
+
+      final d = detail.data;
+
+      setState(() {
+        disableHoldButton = true; 
+        isReadOnly = false; 
+        unloadingStarted = true;
+        _isCameraEnabled = false;
+
+        selectedTankId = d?.tankId;
+        selectedHoleId = d?.holeId;
+        remarksCtrl.text = d?.remarks ?? "";
+
+        // ambil url foto existing 
+        _existingPhotos = (d?.photos ?? [])
+            .map<String>((p) => p.url ?? "")
+            .where((e) => e.isNotEmpty)
+            .toList();
+
+        _image1 = _image2 = _image3 = _image4 = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error load detail HOLD: $e")),
+      );
+    }
+  }
+
+  Future<void> _loadMasterData() async {
+    try {
+      final tankResp = await api.getAllTanks("Bearer ${widget.token}");
+      final holeResp = await api.getAllHoles("Bearer ${widget.token}");
+      if (!mounted) return;
+      setState(() {
+        tanks = tankResp.data;
+        holes = holeResp.data;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Gagal load data tank & hole")),
+      );
+    }
   }
 
   Future<void> _getImage(int index) async {
-    if (!_isCameraEnabled) return;
+    if (!_isCameraEnabled || isReadOnly) return;
 
     final statuses = await [
       Permission.camera,
@@ -55,144 +140,58 @@ class _InputUnloadingPOMEPageState extends State<InputUnloadingPOMEPage> {
       Permission.storage,
     ].request();
 
-    if (statuses[Permission.camera]!.isGranted) {
-      final picked = await picker.pickImage(source: ImageSource.camera);
-      if (picked != null) {
-        setState(() {
-          final f = File(picked.path);
-          switch (index) {
-            case 1:
-              _image1 = f;
-              break;
-            case 2:
-              _image2 = f;
-              break;
-            case 3:
-              _image3 = f;
-              break;
-            case 4:
-              _image4 = f;
-              break;
-          }
-        });
-      }
-    } else {
+    if (!statuses[Permission.camera]!.isGranted) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Izin kamera dibutuhkan")),
-      );
-    }
-  }
-
-  Future<void> _startUnloading() async {
-    if (tankNoCtrl.text.isEmpty || holeNoCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Isi Nomor Tangki & Nomor Lubang dulu")),
+        const SnackBar(content: Text("Akses kamera ditolak")),
       );
       return;
     }
 
-    final payload = {
-      "registration_id": widget.model.registration_id,
-      "tank_no": tankNoCtrl.text.trim(),
-      "hole_no": holeNoCtrl.text.trim(),
-    };
+    final picked = await picker.pickImage(source: ImageSource.camera);
+    if (picked == null) return;
 
-    try {
-      final res = await api.startUnloadingPome("Bearer ${widget.token}", payload);
-
-      if (res.success) {
-        setState(() => unloadingStarted = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Unloading POME dimulai")),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res.message ?? "Gagal start unloading")),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
-    }
+    final f = File(picked.path);
+    setState(() {
+      if (index == 1) _image1 = f;
+      if (index == 2) _image2 = f;
+      if (index == 3) _image3 = f;
+      if (index == 4) _image4 = f;
+    });
   }
 
-  bool _guardStart() {
-    if (!unloadingStarted) {
+  /// Collect 4 foto maksimal → base64
+  List<String> _collectPhotosBase64() {
+    final imgs =
+        [_image1, _image2, _image3, _image4].where((e) => e != null).toList();
+    return imgs.map((f) {
+      final bytes = f!.readAsBytesSync();
+      return "data:image/jpeg;base64,${base64Encode(bytes)}";
+    }).toList();
+  }
+
+  Future<bool> _startUnloading() async {
+    if (_isHoldTicket()) return true;
+    if (unloadingStarted) return true;
+
+    if (selectedTankId == null || selectedHoleId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Mulai unloading dulu")),
+        const SnackBar(content: Text("Pilih Tank dan Hole dulu")),
       );
       return false;
     }
+
+    final imgs =
+        [_image1, _image2, _image3, _image4].where((e) => e != null).toList();
+    if (imgs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Ambil minimal 1 foto dulu")),
+      );
+      return false;
+    }
+
+    setState(() => unloadingStarted = true);
     return true;
-  }
-
-  Future<void> _submit(String status) async {
-    if (!_guardStart()) return;
-    if (_isSubmitting) return;
-
-    setState(() => _isSubmitting = true);
-
-    final payload = {
-      "registration_id": widget.model.registration_id,
-      "unloading_status": status,
-      "tank_no": tankNoCtrl.text.trim(),
-      "hole_no": holeNoCtrl.text.trim(),
-      "remarks": remarksCtrl.text.trim(),
-    };
-
-    try {
-      final res = await api.submitUnloadingPomeStatus(
-        "Bearer ${widget.token}",
-        payload,
-      );
-
-      if (res.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("$status berhasil")),
-        );
-        Navigator.pop(context, {
-          "registration_id": widget.model.registration_id,
-          "plate_number": widget.model.plate_number,
-          "wb_ticket_no": widget.model.wb_ticket_no,
-          "status": status,
-        });
-      }
-    } catch (e) {
-      if (e is DioException) print(e.response?.data);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
-    } finally {
-      setState(() => _isSubmitting = false);
-    }
-  }
-
-  Future<void> _finishUnloading() async {
-    if (!_guardStart()) return;
-
-    setState(() => _isSubmitting = true);
-
-    final payload = {"registration_id": widget.model.registration_id};
-
-    try {
-      final res = await api.finishUnloadingPome(
-        "Bearer ${widget.token}",
-        payload,
-      );
-
-      if (res.success) {
-        Navigator.pop(context, {
-          "registration_id": widget.model.registration_id,
-          "plate_number": widget.model.plate_number,
-          "wb_ticket_no": widget.model.wb_ticket_no,
-          "status": "approved",
-        });
-      }
-    } catch (e) {
-      if (e is DioException) print(e.response?.data);
-    } finally {
-      setState(() => _isSubmitting = false);
-    }
   }
 
   Future<void> _showConfirmDialog({
@@ -200,143 +199,309 @@ class _InputUnloadingPOMEPageState extends State<InputUnloadingPOMEPage> {
     required String message,
     required VoidCallback onConfirm,
   }) async {
-    return showDialog(
+    await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Tidak"),
+      builder: (_) => AlertDialog(
+        title: Text(
+          title,
+          style: TextStyle(fontSize: baseFont),
+        ),
+        content: Text(
+          message,
+          style: TextStyle(fontSize: baseFont),
+        ),
+        actions: [
+          TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
             ),
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                onConfirm();
-              },
-              child: const Text("Ya"),
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Tidak"),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
             ),
-          ],
-        );
-      },
+            onPressed: () {
+              Navigator.pop(context);
+              onConfirm();
+            },
+            child: const Text("Ya"),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _confirmAndSubmit(String status) async {
+    if (!await _startUnloading()) return;
+
+    await _showConfirmDialog(
+      title: "Konfirmasi Simpan",
+      message: "Apakah anda yakin menyimpan data Unloading?",
+      onConfirm: () => _submit(status),
+    );
+  }
+
+  Future<void> _confirmAndFinish() async {
+    if (!await _startUnloading()) return;
+
+    await _showConfirmDialog(
+      title: "Konfirmasi Selesai",
+      message: "Apakah anda yakin menyelesaikan unloading?",
+      onConfirm: _finishUnloading,
+    );
+  }
+
+  Future<void> _submit(String status) async {
+    if (_isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+
+    final photos = _collectPhotosBase64();
+
+    final payload = {
+      "registration_id": widget.model.registration_id,
+      "status": status,
+      "tank_id": selectedTankId,
+      "hole_id": selectedHoleId,
+      "remarks": remarksCtrl.text.trim(),
+      if (photos.isNotEmpty) "photos": photos,
+    };
+
+    try {
+      final res = await api.submitUnloadingPome(
+        "Bearer ${widget.token}",
+        payload,
+      );
+
+      if (res.success) {
+        if (!mounted) return;
+        Navigator.pop(context, {
+          "registration_id": widget.model.registration_id,
+          "plate_number": widget.model.plate_number,
+          "wb_ticket_no": widget.model.wb_ticket_no,
+          "status": status,
+        });
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.message ?? "Gagal submit")),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _finishUnloading() async {
+    if (_isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+
+    final photos = _collectPhotosBase64();
+
+    final payload = {
+      "registration_id": widget.model.registration_id,
+      "status": "approved",
+      "tank_id": selectedTankId,
+      "hole_id": selectedHoleId,
+      "remarks": remarksCtrl.text.trim(),
+      if (photos.isNotEmpty) "photos": photos,
+    };
+
+    try {
+      final res = await api.submitUnloadingPome(
+        "Bearer ${widget.token}",
+        payload,
+      );
+
+      if (res.success) {
+        if (!mounted) return;
+        Navigator.pop(context, {
+          "registration_id": widget.model.registration_id,
+          "plate_number": widget.model.plate_number,
+          "wb_ticket_no": widget.model.wb_ticket_no,
+          "status": "approved",
+        });
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.message ?? "Gagal finish")),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error finish: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final info = {
-    "Plat Kendaraan": widget.model.plate_number,
-    "Nomor Tiket Timbang": widget.model.wb_ticket_no,
-    "Nama Supir": widget.model.driver_name,
-    "Kode Komoditi": widget.model.commodity_code,
-    "Nama Komoditi": widget.model.commodity_name,
-    "Kode Vendor": widget.model.vendor_code,
-    "Nama Vendor": widget.model.vendor_name,
-  };
-
+      "Plat Kendaraan": widget.model.plate_number,
+      "Nomor Tiket Timbang": widget.model.wb_ticket_no,
+      "Supir": widget.model.driver_name,
+      "Kode Komoditi": widget.model.commodity_code,
+      "Nama Komoditi": widget.model.commodity_name,
+      "Kode Vendor": widget.model.vendor_code,
+      "Nama Vendor": widget.model.vendor_name,
+    };
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Input Unloading POME"),
         backgroundColor: Colors.blue,
+        title: Text(
+          "Input Unloading POME",
+          style: TextStyle(
+            fontSize: baseFont + 4,
+            color: Colors.black,
+          ),
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: Container(
+        color: Colors.white,
         child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            ...info.entries.map((e) => _fieldReadOnly(e.key, e.value ?? "")),
+            ...info.entries.map((e) => _fieldReadOnly(e.key, e.value)).toList(),
             const SizedBox(height: 12),
 
-            _fieldInput("Nomor Tangki", tankNoCtrl),
-            const SizedBox(height: 8),
-            _fieldInput("Nomor Lubang", holeNoCtrl),
+            // Dropdown Tank
+            DropdownButtonFormField<int>(
+              value: selectedTankId,
+              decoration: _dec("Pilih Tank"),
+              items: tanks
+                  .map(
+                    (t) => DropdownMenuItem(
+                      value: t.id,
+                      child: Text(
+                        "${t.tank_code} — ${t.tank_name}",
+                        style: TextStyle(
+                          fontSize: baseFont,
+                          fontWeight: FontWeight.normal,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged:
+                  isReadOnly ? null : (v) => setState(() => selectedTankId = v),
+            ),
+
             const SizedBox(height: 12),
-            _fieldInput("Remarks", remarksCtrl, maxLines: 3),
+
+            // Dropdown Hole
+            DropdownButtonFormField<int>(
+              value: selectedHoleId,
+              decoration: _dec("Pilih Hole"),
+              items: holes
+                  .map(
+                    (h) => DropdownMenuItem(
+                      value: h.id,
+                      child: Text(
+                        "${h.hole_code} — ${h.hole_name}",
+                        style: TextStyle(
+                          fontSize: baseFont,
+                          fontWeight: FontWeight.normal,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged:
+                  isReadOnly ? null : (v) => setState(() => selectedHoleId = v),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: remarksCtrl,
+              maxLines: 3,
+              decoration: _dec("Remarks"),
+              style: TextStyle(fontSize: baseFont),
+            ),
+
+            const SizedBox(height: 12),
 
             CheckboxListTile(
               value: _isCameraEnabled,
-              title: const Text("Ambil Gambar"),
-              onChanged: (value) async {
-                if (value == true &&
-                    (tankNoCtrl.text.isEmpty || holeNoCtrl.text.isEmpty)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Isi Nomor Tangki dan Nomor Lubang dulu"),
-                    ),
-                  );
-                  return;
-                }
-
-                setState(() {
-                  _isCameraEnabled = value ?? false;
-                });
-
-                if (value == true && !unloadingStarted) {
-                  await _startUnloading();
-                }
-
-                if (value == false) {
-                  setState(() {
-                    _image1 = _image2 = _image3 = _image4 = null;
-                  });
-                }
-              },
+              title: Text(
+                "Ambil Foto (Camera)",
+                style: TextStyle(
+                  fontSize: baseFont + 1,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onChanged: isReadOnly
+                  ? null
+                  : (v) {
+                      setState(() => _isCameraEnabled = v ?? false);
+                      if (v == false) {
+                        setState(() {
+                          _image1 = _image2 = _image3 = _image4 = null;
+                        });
+                      }
+                    },
             ),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _box(1, _image1),
-                _box(2, _image2),
-                _box(3, _image3),
-                _box(4, _image4),
-              ],
-            ),
-            const SizedBox(height: 28),
+            if (!isReadOnly)
+              Container(
+                padding: const EdgeInsets.all(12),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black26),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(child: _box(1, _image1)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _box(2, _image2)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _box(3, _image3)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _box(4, _image4)),
+                  ],
+                ),
+              ),
+
+            const SizedBox(height: 30),
 
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _btn("Hold", Colors.orange, unloadingStarted
-                    ? () {
-                        _showConfirmDialog(
-                          title: "Konfirmasi Simpan",
-                          message:
-                              "Apakah anda yakin menahan proses unloading (Hold)?",
-                          onConfirm: () => _submit("hold"),
-                        );
-                      } 
-                    : null),
-                _btn("Finish", Colors.blue, unloadingStarted
-                    ? () {
-                        _showConfirmDialog(
-                          title: "Konfirmasi Selesai",
-                          message: "Apakah anda yakin menyelesaikan unloading?",
-                          onConfirm: _finishUnloading,
-                        );
-                      }
-                    : null),
-                _btn("Reject", Colors.red, unloadingStarted
-                    ? () {
-                        _showConfirmDialog(
-                          title: "Konfirmasi Tolak",
-                          message:
-                              "Apakah anda yakin menolak unloading ini (Reject)?",
-                          onConfirm: () => _submit("rejected"),
-                        );
-                      }
-                    : null),
+                _btn(
+                  "Hold",
+                  Colors.orange,
+                  () => _confirmAndSubmit("hold"),
+                  enabled: !disableHoldButton,
+                ),
+                _btn(
+                  "Finish",
+                  Colors.blue,
+                  _confirmAndFinish,
+                ),
+                _btn(
+                  "Reject",
+                  Colors.red,
+                  () => _confirmAndSubmit("rejected"),
+                ),
               ],
             ),
           ],
@@ -345,82 +510,93 @@ class _InputUnloadingPOMEPageState extends State<InputUnloadingPOMEPage> {
     );
   }
 
-  Widget   _btn(String text, Color c, VoidCallback? fn) => ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: c),
-        onPressed: _isSubmitting ? null : fn,
-        child: Text(text),
+  InputDecoration _dec(String label) => InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        filled: true,
+        fillColor: Colors.white,
       );
 
-  Widget _fieldReadOnly(String label, String value) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          
-          // label = "Plat Kendaraan", tampilkan teks polos
-          if (label == "Plat Kendaraan")
+  Widget _fieldReadOnly(String label, String? value) {
+    if (label == "Plat Kendaraan") {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: baseFont)),
+            const SizedBox(height: 6),
             Text(
-              value,
-              style: const TextStyle(
-                fontSize: 16,
+              value ?? "",
+              style: TextStyle(
+                fontSize: baseFont + 1,
                 fontWeight: FontWeight.w600,
                 color: Colors.black,
               ),
-            )
-          else
-            // Field lain tetap pakai box abu-abu
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                border: Border.all(color: Colors.black54),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(value, style: const TextStyle(color: Colors.black87)),
             ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: baseFont)),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black26),
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              value ?? "",
+              style: TextStyle(fontSize: baseFont),
+            ),
+          ),
         ],
       ),
     );
+  }
 
-
-  Widget _fieldInput(String label, TextEditingController c,
-          {int maxLines = 1}) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-        child: TextField(
-          controller: c,
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            labelText: label,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-          ),
+  Widget _btn(String text, Color c, VoidCallback onTap,
+          {bool enabled = true}) =>
+      ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: c),
+        onPressed: _isSubmitting || !enabled ? null : onTap,
+        child: Text(
+          text,
+          style: const TextStyle(fontSize: 13),
         ),
       );
 
-  Widget _box(int i, File? f) => GestureDetector(
-        onTap: _isCameraEnabled ? () => _getImage(i) : null,
-        child: Container(
-          width: 70,
-          height: 90,
-          decoration: BoxDecoration(
-            border: Border.all(),
-            borderRadius: BorderRadius.circular(8),
-            color: _isCameraEnabled ? Colors.white : Colors.grey.shade400,
+  Widget _box(int index, File? f) => GestureDetector(
+        onTap: _isCameraEnabled && !isReadOnly ? () => _getImage(index) : null,
+        child: AspectRatio(
+          aspectRatio: 3 / 4,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black26),
+              borderRadius: BorderRadius.circular(10),
+              color: _isCameraEnabled && !isReadOnly
+                  ? Colors.white
+                  : Colors.grey.shade300,
+            ),
+            child: f == null
+                ? const Icon(Icons.camera_alt, size: 30)
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.file(
+                      f,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
           ),
-          child: f == null
-              ? const Icon(Icons.camera_alt)
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(f, fit: BoxFit.cover),
-                ),
         ),
       );
 }

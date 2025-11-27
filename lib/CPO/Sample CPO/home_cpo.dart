@@ -61,7 +61,7 @@ class _HomeCPOPageState extends State<HomeCPOPage> {
         belumSample = stats?.truk_belum_ambil_sample ?? 0;
         sudahSample = stats?.truk_sudah_ambil_sample ?? 0;
         totalKeluar = stats?.total_truk_keluar ?? 0;
-        lastUpdate = period?.to ?? "-";
+        lastUpdate = DateTime.now().toString();
         isLoading = false;
       });
 

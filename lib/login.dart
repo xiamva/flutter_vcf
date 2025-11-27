@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_vcf/PK/Lab%20PK/home_lab_pk.dart';
+import 'package:flutter_vcf/PK/Unloading%20PK/home_unloading_pk.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart'; 
@@ -6,7 +8,6 @@ import 'CPO/Sample CPO/home_cpo.dart';
 import 'PK/Sample PK/home_pk.dart';
 import 'POME/Sample POME/home_pome.dart';
 import 'CPO/Lab CPO/home_lab_cpo.dart';
-// import 'home_lab_pk.dart';
 import 'CPO/Unloading CPO/home_unloading_cpo.dart';
 import 'POME/Lab POME/home_lab_pome.dart';
 import 'POME/Unloading POME/home_unloading_pome.dart';
@@ -14,6 +15,10 @@ import 'POME/Unloading POME/home_unloading_pome.dart';
 void main() {
   runApp(const VCFApp());
 }
+// void main (){
+//   runApp(const vcfApp()
+//   );
+// }
 
 class VCFApp extends StatelessWidget {
   const VCFApp({super.key});
@@ -56,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     // IP backend Laravel 
-    var url = Uri.parse('http://172.30.64.197:8000/api/login');
+    var url = Uri.parse('http://172.30.64.207:8000/api/login');
 
     try {
       var response = await http.post(
@@ -113,6 +118,20 @@ class _LoginPageState extends State<LoginPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => HomePKPage(userId: username, token: token),
+              ),
+            );
+          } else if (username == "lab_pk") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeLabPKPage(userId: username, token: token),
+              ),
+            );
+           } else if (username == "unloading_pk") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeUnloadingPKPage(userId: username, token: token),
               ),
             );
           } else if (username == "sample_pome") {
