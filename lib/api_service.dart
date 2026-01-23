@@ -34,6 +34,10 @@ import 'package:flutter_vcf/models/response/submit_lab_cpo_response.dart';
 import 'package:flutter_vcf/models/response/lab_detail_response.dart';
 import 'package:flutter_vcf/models/pome/response/qc_sampling_pome_statistics_response.dart';
 import 'package:flutter_vcf/models/pome/response/submit_lab_pome_response.dart';
+import 'package:flutter_vcf/models/manager/response/manager_check_tickets_response.dart';
+import 'package:flutter_vcf/models/manager/response/manager_check_detail_response.dart';
+import 'package:flutter_vcf/models/manager/response/manager_check_submit_response.dart';
+import 'package:flutter_vcf/models/manager/response/manager_check_statistics_response.dart';
 // import 'package:flutter_vcf/models/response/submit_unloading_response.dart';
 
 
@@ -287,6 +291,45 @@ Future<QcSamplingPkVehiclesResponse> getQcSamplingPkVehicles(
   Future<SubmitUnloadingResponse> submitUnloadingPk(
     @Header("Authorization") String token,
     @Body() Map<String, dynamic> payload,
+  );
+
+  // ==================== MANAGER CHECK ====================
+
+  @GET("/manager/check/tickets")
+  Future<ManagerCheckTicketsResponse> getManagerCheckTickets(
+    @Header("Authorization") String token,
+    @Query("commodity") String commodity, {
+    @Query("stage") String? stage,
+  });
+
+  @GET("/manager/check/tickets/{registrationId}/{stage}")
+  Future<ManagerCheckDetailResponse> getManagerCheckTicketDetail(
+    @Header("Authorization") String token,
+    @Path("registrationId") String registrationId,
+    @Path("stage") String stage,
+  );
+
+  @POST("/manager/check/sampling")
+  Future<ManagerCheckSubmitResponse> submitManagerSamplingCheck(
+    @Header("Authorization") String token,
+    @Body() Map<String, dynamic> payload,
+  );
+
+  @POST("/manager/check/lab")
+  Future<ManagerCheckSubmitResponse> submitManagerLabCheck(
+    @Header("Authorization") String token,
+    @Body() Map<String, dynamic> payload,
+  );
+
+  @POST("/manager/check/unloading")
+  Future<ManagerCheckSubmitResponse> submitManagerUnloadingCheck(
+    @Header("Authorization") String token,
+    @Body() Map<String, dynamic> payload,
+  );
+
+  @GET("/manager/check/statistics")
+  Future<ManagerCheckStatisticsResponse> getManagerCheckStatistics(
+    @Header("Authorization") String token,
   );
   
 }
