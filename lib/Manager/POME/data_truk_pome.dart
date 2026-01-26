@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 
 class DataTrukPomePage extends StatefulWidget {
   const DataTrukPomePage({super.key});
@@ -37,7 +38,7 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     loadAll();
   }
 

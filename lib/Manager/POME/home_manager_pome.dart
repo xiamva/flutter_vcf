@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'data_truk_pome.dart';
 import '../CPO/home_manager.dart';
 import '../PK/home_manager_pk.dart';
@@ -32,7 +33,7 @@ class _HomeManagerPomeState extends State<HomeManagerPome> {
   int labKeluar = 0;
   int unloadKeluar = 0;
 
-  final api = ApiService(Dio());
+  final api = ApiService(AppConfig.createDio());
 
   @override
   void initState() {
