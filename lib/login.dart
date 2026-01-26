@@ -56,10 +56,6 @@ class _LoginPageState extends State<LoginPage> {
     String username = userIdController.text.trim();
     String password = passwordController.text.trim();
 
-    print("==== DEBUG LOGIN START ====");
-    print("Username input: '$username'");
-    print("Password input: '${password.isNotEmpty ? '******' : ''}'");
-
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -87,11 +83,10 @@ class _LoginPageState extends State<LoginPage> {
         var data = json.decode(response.body);
 
         if (data['success'] == true && data['data'] != null) {
-          // Ambil token
-          String rawToken = data['data']['token'];
-          String token = "Bearer $rawToken"; // ← PENTING: tambah Bearer
+          // Get raw token (without Bearer prefix)
+          String token = data['data']['token'];
 
-          // Simpan token ke SharedPreferences
+          // Store raw token - "Bearer " prefix is added when making API calls
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('jwt_token', token);
 
