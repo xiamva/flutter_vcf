@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 
 class DataTrukPkPage extends StatefulWidget {
   const DataTrukPkPage({super.key});
@@ -11,7 +12,7 @@ class DataTrukPkPage extends StatefulWidget {
 }
 
 class _DataTrukPkPageState extends State<DataTrukPkPage> {
-  final api = ApiService(Dio());
+  final api = ApiService(AppConfig.createDio());
 
   bool isLoading = true;
   String? errorMessage;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import '../../../login.dart';
 import 'dart:async';
 
@@ -80,7 +81,7 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
 
   // ======================= LOAD PK STATISTICS ===========================
   Future<void> loadStatistics() async {
-    final api = ApiService(Dio());
+    final api = ApiService(AppConfig.createDio());
     final prefs = await SharedPreferences.getInstance();
 
     String? savedToken =
