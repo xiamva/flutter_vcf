@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/manager/manager_check_ticket.dart';
 import 'package:flutter_vcf/models/manager/manager_check_detail.dart';
 import 'package:flutter_vcf/models/manager/response/manager_check_tickets_response.dart';
@@ -36,8 +37,7 @@ class _SpTiketManagerCPOPageState extends State<SpTiketManagerCPOPage> {
   @override
   void initState() {
     super.initState();
-    final dio = Dio();
-    api = ApiService(dio);
+    api = ApiService(AppConfig.createDio());
     fetchTickets();
   }
 
@@ -128,7 +128,10 @@ class _SpTiketManagerCPOPageState extends State<SpTiketManagerCPOPage> {
                                 builder: (_) => _ManagerSamplingCheckInputPage(
                                   token: widget.token,
                                   ticket: ticket,
-                                  onComplete: fetchTickets,
+                                  onComplete: () {
+                                    fetchTickets();
+                                    Navigator.pop(context);
+                                  },
                                 ),
                               ),
                             );
@@ -250,7 +253,7 @@ class _ManagerSamplingCheckInputPageState
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     _loadDetail();
   }
 

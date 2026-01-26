@@ -1,9 +1,9 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/Manager/CPO/tiket/lb_tiket_manager_cpo.dart';
 import 'package:flutter_vcf/Manager/CPO/tiket/sp_tiket_manager_cpo.dart';
 import 'package:flutter_vcf/Manager/CPO/tiket/un_tiket_manager_cpo.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../login.dart';
 import 'dart:async';
@@ -24,7 +24,7 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
 
   int currentIndex = 0;
   int infoIndex = 0;
-  Timer? autoSlideTimer;  
+  Timer? autoSlideTimer;
   Timer? autoInfoTimer;
   bool showInputOptions = false;
   final String halamanAktif = "CPO";
@@ -32,6 +32,15 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
   int totalSampleKeluar = 0;
   int totalLabKeluar = 0;
   int totalUnloadingKeluar = 0;
+
+  // Manager check statistics for carousel
+  int samplingPendingChecks = 0;
+  int labPendingChecks = 0;
+  int unloadingPendingChecks = 0;
+
+  int samplingApprovedChecks = 0;
+  int labApprovedChecks = 0;
+  int unloadingApprovedChecks = 0;
 
   // ---------------- DATE FORMAT (INDONESIA) ----------------
   String getTanggalIndonesia() {
@@ -41,6 +50,22 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
       "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     ];
     return "${now.day} ${bulan[now.month - 1]} ${now.year}";
+  }
+
+  // ---------------- GET IMAGE URL FROM BACKEND ----------------
+  String getImageUrl(String imagePath) {
+    // Remove /api/ from base URL to get the base server URL
+    String baseUrl = AppConfig.apiBaseUrl.replaceAll('/api/', '');
+    // Remove trailing slash if present
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+    }
+    // Construct full URL: baseUrl/imagePath
+    // imagePath should be like: vcs/carousel/cpo_sampling.jpg
+    if (imagePath.startsWith('/')) {
+      return '$baseUrl$imagePath';
+    }
+    return '$baseUrl/$imagePath';
   }
 
   @override
@@ -81,7 +106,7 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
 
   // ======================= LOAD STATISTICS API ===========================
   Future<void> loadStatistics() async {
-    final api = ApiService(Dio());
+    final api = ApiService(AppConfig.createDio());
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -90,7 +115,6 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
 
 
       if (savedToken == null) {
-        print("TOKEN NOT FOUND");
         return;
       }
 
@@ -100,6 +124,7 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
       String dateFrom = "${now.year}-01-01";
       String dateTo = "${now.year}-12-31";
 
+      // Load operator statistics
       final sampleStats = await api.getQcSamplingStats(
         token,
         dateFrom: dateFrom,
@@ -118,6 +143,28 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
         dateTo: dateTo,
       );
 
+      // Load manager check statistics
+      final managerStats = await api.getManagerCheckStatistics(token);
+
+      // Fetch tickets for each stage to count pending checks
+      final samplingTickets = await api.getManagerCheckTickets(
+        token,
+        "CPO",
+        stage: "sampling",
+      );
+
+      final labTickets = await api.getManagerCheckTickets(
+        token,
+        "CPO",
+        stage: "lab",
+      );
+
+      final unloadingTickets = await api.getManagerCheckTickets(
+        token,
+        "CPO",
+        stage: "unloading",
+      );
+
       setState(() {
         totalSampleKeluar =
             sampleStats.data?.statistics?.total_truk_keluar ?? 0;
@@ -127,6 +174,23 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
 
         totalUnloadingKeluar =
             unloadingStats.data?.statistics?.total_truk_keluar ?? 0;
+
+        // Extract manager check statistics by stage
+        final byStage = managerStats.data?.by_stage;
+        if (byStage != null) {
+          final sampling = byStage['sampling'];
+          final lab = byStage['lab'];
+          final unloading = byStage['unloading'];
+
+          samplingApprovedChecks = sampling?.approved ?? 0;
+          labApprovedChecks = lab?.approved ?? 0;
+          unloadingApprovedChecks = unloading?.approved ?? 0;
+        }
+
+        // Count pending checks (tickets without manager check)
+        samplingPendingChecks = samplingTickets.data?.where((t) => !(t.has_manager_check ?? false)).length ?? 0;
+        labPendingChecks = labTickets.data?.where((t) => !(t.has_manager_check ?? false)).length ?? 0;
+        unloadingPendingChecks = unloadingTickets.data?.where((t) => !(t.has_manager_check ?? false)).length ?? 0;
       });
     } catch (e) {
       print("ERROR LOAD STATISTICS: $e");
@@ -147,7 +211,7 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
     );
   }
 
-  // ====================================================================== 
+  // ======================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -320,12 +384,32 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
                       itemBuilder: (context, index) {
                         final page = index % 3;
                         if (page == 0) {
-                          return _imageCard("QC SAMPLE", "assets/cpo.jpg", imageHeight);
+                          return _stageCard(
+                            "QC Sampling CPO",
+                            getImageUrl("vcs/carousel/cpo_sampling.jpg"),
+                            imageHeight,
+                            totalSampleKeluar,
+                            samplingPendingChecks,
+                            samplingApprovedChecks,
+                          );
                         } else if (page == 1) {
-                          return _imageCard(
-                              "QC SAMPLE POME", "assets/pome.jpg", imageHeight);
+                          return _stageCard(
+                            "QC Lab CPO",
+                            getImageUrl("vcs/carousel/cpo_lab.jpg"),
+                            imageHeight,
+                            totalLabKeluar,
+                            labPendingChecks,
+                            labApprovedChecks,
+                          );
                         }
-                        return _imageCard("QC SAMPLE PK", "assets/pk.jpg", imageHeight);
+                        return _stageCard(
+                          "Unloading CPO",
+                          getImageUrl("vcs/carousel/cpo_unloading.jpg"),
+                          imageHeight,
+                          totalUnloadingKeluar,
+                          unloadingPendingChecks,
+                          unloadingApprovedChecks,
+                        );
                       },
                     ),
                     Positioned(
@@ -361,7 +445,7 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
                               "$totalSampleKeluar"),
                           _infoCard(
                               "Total LAB Truk Keluar", "$totalLabKeluar"),
-                          _infoCard("Total Unloading Truk Keluar",    
+                          _infoCard("Total Unloading Truk Keluar",
                               "$totalUnloadingKeluar"),
                         ],
                       ),
@@ -485,7 +569,7 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
           AnimatedSize(
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeInOut,
-            child: showInputOptions 
+            child: showInputOptions
                 ? Column(
                     children: [
                       _optionItem(
@@ -531,7 +615,7 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
                           ),
                         );
                       },
-                    ),        
+                    ),
 
                       const SizedBox(height: 10),
                       _optionItem(
@@ -628,8 +712,15 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
     );
   }
 
-  // ------------------ IMAGE CARD ------------------
-  Widget _imageCard(String label, String path, double height) {
+  // ------------------ STAGE CARD (with statistics) ------------------
+  Widget _stageCard(
+    String label,
+    String imageUrl,
+    double height,
+    int totalKeluar,
+    int pendingChecks,
+    int approvedChecks,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: ClipRRect(
@@ -640,8 +731,58 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
               height: height,
               width: double.infinity,
               color: Colors.grey.shade200,
-              child: Image.asset(path, fit: BoxFit.cover),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback to a gradient background if image fails to load
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.blue.shade400,
+                          Colors.blue.shade600,
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
+            // Gradient overlay for better text readability (only on image, not on statistics)
+            // Positioned to stop before the statistics container area
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 80, // Leave space for statistics container (approximately 80px)
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.6),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Stage label at top
             Positioned(
               top: 16,
               left: 16,
@@ -649,21 +790,76 @@ class _ManagerHomeSwipeState extends State<ManagerHomeSwipe> {
                 padding:
                     const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.75),
+                  color: Colors.white.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.blue,
                   ),
+                ),
+              ),
+            ),
+            // Statistics at bottom (fully opaque white, drawn last to ensure it's on top)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _statItem("Total Keluar", "$totalKeluar", Colors.blue),
+                        _statItem("Pending", "$pendingChecks", Colors.orange),
+                        _statItem("Approved", "$approvedChecks", Colors.green),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _statItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

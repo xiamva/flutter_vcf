@@ -1,13 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dio/dio.dart';
-
 import 'package:flutter_vcf/api_service.dart';
-import 'package:flutter_vcf/models/manager/manager_check_ticket.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/manager/manager_check_detail.dart';
-import 'package:flutter_vcf/models/manager/response/manager_check_tickets_response.dart';
-import 'package:flutter_vcf/models/manager/response/manager_check_detail_response.dart';
+import 'package:flutter_vcf/models/manager/manager_check_ticket.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LbTiketManagerCPOPage extends StatefulWidget {
   final String userId;
@@ -32,15 +30,28 @@ class _LbTiketManagerCPOPageState extends State<LbTiketManagerCPOPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchTickets();
   }
 
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString("jwt_token") ??
-           prefs.getString("token") ??
-           widget.token;
+        prefs.getString("token") ??
+        widget.token;
+  }
+
+  String _stageLabel(String? stage) {
+    switch (stage) {
+      case 'sampling':
+        return 'Sampling';
+      case 'lab':
+        return 'Lab';
+      case 'unloading':
+        return 'Unloading';
+      default:
+        return stage ?? '-';
+    }
   }
 
   Future<void> fetchTickets() async {
@@ -59,9 +70,9 @@ class _LbTiketManagerCPOPageState extends State<LbTiketManagerCPOPage> {
       });
     } catch (e) {
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal fetch data: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Gagal fetch data: $e")));
     }
   }
 
@@ -72,141 +83,197 @@ class _LbTiketManagerCPOPageState extends State<LbTiketManagerCPOPage> {
         title: const Text("Manager Lab CPO"),
         backgroundColor: Colors.blue,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: fetchTickets,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: fetchTickets),
         ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : tickets.isEmpty
-              ? const Center(
-                  child: Text(
-                    "Tidak ada tiket lab untuk di-check.",
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: fetchTickets,
-                  child: ListView.builder(
-                    itemCount: tickets.length,
-                    itemBuilder: (_, i) {
-                      final ticket = tickets[i];
-                      final isChecked = ticket.has_manager_check == true;
+          ? const Center(
+              child: Text(
+                "Tidak ada tiket lab untuk di-check.",
+                style: TextStyle(fontSize: 16, color: Colors.black54),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: fetchTickets,
+              child: ListView.builder(
+                itemCount: tickets.length,
+                itemBuilder: (_, i) {
+                  final ticket = tickets[i];
+                  final isChecked = ticket.has_manager_check == true;
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: InkWell(
-                          onTap: () {
-                            if (isChecked) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    "Already checked: ${ticket.latest_check_status ?? 'DONE'}",
-                                  ),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                              return;
-                            }
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => _ManagerLabCheckInputPage(
-                                  token: widget.token,
-                                  ticket: ticket,
-                                  onComplete: () {
-                                    fetchTickets();
-                                    Navigator.pop(context);
-                                  },
-                                ),
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InkWell(
+                      onTap: () {
+                        if (isChecked) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                "Already checked: ${ticket.latest_check_status ?? 'DONE'}",
                               ),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        "WB: ${ticket.wb_ticket_no ?? '-'}",
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                    if (isChecked)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade300,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.check_circle,
-                                              size: 14,
-                                              color: Colors.grey.shade700,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              ticket.latest_check_status ??
-                                                  "Checked",
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade700,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  ticket.plate_number ?? "-",
-                                  style: const TextStyle(fontSize: 15),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Driver: ${ticket.driver_name ?? '-'}",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                                Text(
-                                  "Vendor: ${ticket.vendor_name ?? '-'}",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _ManagerLabCheckInputPage(
+                              token: widget.token,
+                              ticket: ticket,
+                              onComplete: () {
+                                fetchTickets();
+                                Navigator.pop(context);
+                              },
                             ),
                           ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "WB: ${ticket.wb_ticket_no ?? '-'}",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                if (isChecked)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade300,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.check_circle,
+                                          size: 14,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          ticket.latest_check_status ??
+                                              "Checked",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade700,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              ticket.plate_number ?? "-",
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Driver: ${ticket.driver_name ?? '-'}",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            Text(
+                              "Vendor: ${ticket.vendor_name ?? '-'}",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            // Previous stage checks history
+                            if (ticket.previous_checks != null &&
+                                ticket.previous_checks!.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              const Divider(height: 1),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: ticket.previous_checks!.map((check) {
+                                  final isApproved =
+                                      check.check_status == "APPROVE";
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isApproved
+                                          ? Colors.green.shade100
+                                          : Colors.red.shade100,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: isApproved
+                                            ? Colors.green.shade400
+                                            : Colors.red.shade400,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isApproved
+                                              ? Icons.check_circle
+                                              : Icons.cancel,
+                                          size: 14,
+                                          color: isApproved
+                                              ? Colors.green.shade700
+                                              : Colors.red.shade700,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          "${_stageLabel(check.stage)}: ${check.check_status}",
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: isApproved
+                                                ? Colors.green.shade700
+                                                : Colors.red.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ],
                         ),
-                      );
-                    },
-                  ),
-                ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }
@@ -247,7 +314,7 @@ class _ManagerLabCheckInputPageState extends State<_ManagerLabCheckInputPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     _loadDetail();
   }
 
@@ -274,18 +341,28 @@ class _ManagerLabCheckInputPageState extends State<_ManagerLabCheckInputPage> {
       });
     } catch (e) {
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal load detail: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Gagal load detail: $e")));
     }
   }
 
   Future<void> _submit(String status) async {
+    debugPrint('[Manager Lab Check] Starting submission');
+    debugPrint('[Manager Lab Check] Status: $status');
+    debugPrint('[Manager Lab Check] Process ID: ${widget.ticket.process_id}');
+    debugPrint('[Manager Lab Check] Registration ID: ${widget.ticket.registration_id}');
+
     // Validate required fields
     if (ffaCtrl.text.isEmpty ||
         moistCtrl.text.isEmpty ||
         dobiCtrl.text.isEmpty ||
         ivCtrl.text.isEmpty) {
+      debugPrint('[Manager Lab Check] Validation failed: Empty required fields');
+      debugPrint('[Manager Lab Check] FFA: ${ffaCtrl.text.isEmpty ? "EMPTY" : ffaCtrl.text}');
+      debugPrint('[Manager Lab Check] Moisture: ${moistCtrl.text.isEmpty ? "EMPTY" : moistCtrl.text}');
+      debugPrint('[Manager Lab Check] DOBI: ${dobiCtrl.text.isEmpty ? "EMPTY" : dobiCtrl.text}');
+      debugPrint('[Manager Lab Check] IV: ${ivCtrl.text.isEmpty ? "EMPTY" : ivCtrl.text}');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("All lab fields are required"),
@@ -295,21 +372,89 @@ class _ManagerLabCheckInputPageState extends State<_ManagerLabCheckInputPage> {
       return;
     }
 
+    // Parse and validate values
+    double mgrFfa, mgrMoisture, mgrDobi, mgrIv;
+    try {
+      mgrFfa = double.parse(ffaCtrl.text);
+      mgrMoisture = double.parse(moistCtrl.text);
+      mgrDobi = double.parse(dobiCtrl.text);
+      mgrIv = double.parse(ivCtrl.text);
+    } on FormatException catch (e) {
+      debugPrint('[Manager Lab Check] FormatException: Invalid number format');
+      debugPrint('[Manager Lab Check] Error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Invalid number format"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Validate ranges (matching operator validation)
+    if (mgrFfa < 0 || mgrFfa > 100) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("FFA value must be between 0 and 100"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (mgrMoisture < 0 || mgrMoisture > 100) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Moisture value must be between 0 and 100"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (mgrDobi < 0 || mgrDobi > 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("DOBI value must be between 0 and 10"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (mgrIv < 0 || mgrIv > 1000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("IV value must be between 0 and 1000"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => isSubmitting = true);
 
     try {
-      await api.submitManagerLabCheck(
-        "Bearer ${widget.token}",
-        {
-          "process_id": widget.ticket.process_id,
-          "check_status": status,
-          "remarks": remarksCtrl.text,
-          "mgr_ffa": double.parse(ffaCtrl.text),
-          "mgr_moisture": double.parse(moistCtrl.text),
-          "mgr_dobi": double.parse(dobiCtrl.text),
-          "mgr_iv": double.parse(ivCtrl.text),
-        },
-      );
+      debugPrint('[Manager Lab Check] Parsed values:');
+      debugPrint('[Manager Lab Check]   mgr_ffa: $mgrFfa');
+      debugPrint('[Manager Lab Check]   mgr_moisture: $mgrMoisture');
+      debugPrint('[Manager Lab Check]   mgr_dobi: $mgrDobi');
+      debugPrint('[Manager Lab Check]   mgr_iv: $mgrIv');
+      debugPrint('[Manager Lab Check]   remarks: ${remarksCtrl.text}');
+
+      final requestData = {
+        "process_id": widget.ticket.process_id,
+        "check_status": status,
+        "remarks": remarksCtrl.text,
+        "mgr_ffa": mgrFfa,
+        "mgr_moisture": mgrMoisture,
+        "mgr_dobi": mgrDobi,
+        "mgr_iv": mgrIv,
+      };
+
+      debugPrint('[Manager Lab Check] Request payload: $requestData');
+      debugPrint('[Manager Lab Check] Sending API request...');
+
+      await api.submitManagerLabCheck("Bearer ${widget.token}", requestData);
+
+      debugPrint('[Manager Lab Check] API request successful');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -321,7 +466,16 @@ class _ManagerLabCheckInputPageState extends State<_ManagerLabCheckInputPage> {
     } on DioException catch (e) {
       setState(() => isSubmitting = false);
 
+      debugPrint('[Manager Lab Check] DioException occurred');
+      debugPrint('[Manager Lab Check] Error type: ${e.type}');
+      debugPrint('[Manager Lab Check] Error message: ${e.message}');
+      debugPrint('[Manager Lab Check] Status code: ${e.response?.statusCode}');
+      debugPrint('[Manager Lab Check] Response data: ${e.response?.data}');
+      debugPrint('[Manager Lab Check] Request options: ${e.requestOptions.uri}');
+      debugPrint('[Manager Lab Check] Request data: ${e.requestOptions.data}');
+
       if (e.response?.statusCode == 409) {
+        debugPrint('[Manager Lab Check] 409 Conflict: Ticket already checked');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("This ticket has already been checked"),
@@ -332,27 +486,35 @@ class _ManagerLabCheckInputPageState extends State<_ManagerLabCheckInputPage> {
         return;
       }
 
+      final errorMessage = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      debugPrint('[Manager Lab Check] Showing error to user: $errorMessage');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Error: ${e.message}"),
+          content: Text("Error: $errorMessage"),
           backgroundColor: Colors.red,
         ),
       );
-    } on FormatException {
+    } on FormatException catch (e) {
       setState(() => isSubmitting = false);
+      debugPrint('[Manager Lab Check] FormatException: Invalid number format');
+      debugPrint('[Manager Lab Check] Error: $e');
+      debugPrint('[Manager Lab Check] FFA text: "${ffaCtrl.text}"');
+      debugPrint('[Manager Lab Check] Moisture text: "${moistCtrl.text}"');
+      debugPrint('[Manager Lab Check] DOBI text: "${dobiCtrl.text}"');
+      debugPrint('[Manager Lab Check] IV text: "${ivCtrl.text}"');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Invalid number format"),
           backgroundColor: Colors.red,
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
       setState(() => isSubmitting = false);
+      debugPrint('[Manager Lab Check] Unexpected exception: $e');
+      debugPrint('[Manager Lab Check] Stack trace: $stackTrace');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error: $e"),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
       );
     }
   }
@@ -427,13 +589,21 @@ class _ManagerLabCheckInputPageState extends State<_ManagerLabCheckInputPage> {
                           ),
                           const Divider(),
                           _readOnlyField(
-                              "WB Ticket", widget.ticket.wb_ticket_no ?? "-"),
+                            "WB Ticket",
+                            widget.ticket.wb_ticket_no ?? "-",
+                          ),
                           _readOnlyField(
-                              "Plate Number", widget.ticket.plate_number ?? "-"),
+                            "Plate Number",
+                            widget.ticket.plate_number ?? "-",
+                          ),
                           _readOnlyField(
-                              "Driver", widget.ticket.driver_name ?? "-"),
+                            "Driver",
+                            widget.ticket.driver_name ?? "-",
+                          ),
                           _readOnlyField(
-                              "Vendor", widget.ticket.vendor_name ?? "-"),
+                            "Vendor",
+                            widget.ticket.vendor_name ?? "-",
+                          ),
                         ],
                       ),
                     ),

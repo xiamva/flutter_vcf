@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DataTrukCpoPage extends StatefulWidget {
@@ -36,7 +37,7 @@ class _DataTrukCpoPageState extends State<DataTrukCpoPage> {
   }
 
   Future<void> loadStatistics() async {
-  final api = ApiService(Dio());
+  final api = ApiService(AppConfig.createDio());
   final prefs = await SharedPreferences.getInstance();
 
   // Ambil token yang benar
