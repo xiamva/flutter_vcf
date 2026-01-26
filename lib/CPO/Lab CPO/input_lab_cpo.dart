@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/qc_lab_cpo_vehicle.dart';
 
 class InputLabCPOPage extends StatefulWidget {
@@ -43,13 +44,7 @@ class _InputLabCPOPageState extends State<InputLabCPOPage> {
   @override
   void initState() {
     super.initState();
-    final dio = Dio()
-      ..interceptors.add(LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (obj) => debugPrint(obj.toString()),
-      ));
-    api = ApiService(dio);
+    api = ApiService(AppConfig.createDio(withLogging: true));
 
   debugPrint("lab_status: ${widget.model.lab_status}");
   debugPrint("regist_status: ${widget.model.regist_status}");

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 
 import 'package:flutter_vcf/models/qc_lab_cpo_vehicle.dart';
 import 'input_lab_cpo.dart';
@@ -30,7 +31,7 @@ class _AddLabCPOPageState extends State<AddLabCPOPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchVehiclePlates();
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import '../../login.dart';
 import 'sample_qc.dart';
 
@@ -34,7 +35,7 @@ class _HomeCPOPageState extends State<HomeCPOPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchCPOStatistics();
   }
 

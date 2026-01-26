@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/response/qc_sampling_cpo_vehicles_response.dart';
 import 'add_sample_qc_cpo.dart';
 
@@ -29,8 +30,7 @@ class _SampleQCPageState extends State<SampleQCPage> {
   @override
   void initState() {
     super.initState();
-    final dio = Dio();
-    api = ApiService(dio);
+    api = ApiService(AppConfig.createDio());
     loadCachedTickets().then((_) => fetchTickets());
   }
 
