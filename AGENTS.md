@@ -59,11 +59,10 @@ Each commodity has 3 workflows, each with:
 ```dart
 // Get token from SharedPreferences
 final prefs = await SharedPreferences.getInstance();
-final token = prefs.getString('token') ?? '';
+final token = prefs.getString('jwt_token') ?? '';
 
-// Use Retrofit client
-final dio = Dio();
-final api = ApiService(dio);
+// Use Retrofit client with AppConfig
+final api = ApiService(AppConfig.createDio());
 final response = await api.getQcSamplingStats("Bearer $token");
 ```
 
@@ -75,7 +74,7 @@ final response = await api.getQcSamplingStats("Bearer $token");
 ## ANTI-PATTERNS (FORBIDDEN)
 
 - **NEVER** edit `*.g.dart` files - they're generated
-- **NEVER** hardcode API URL - defined in `api_service.dart` line 45
+- **NEVER** hardcode API URL - use `AppConfig.createDio()` from `config.dart`
 - **NEVER** skip `flutter pub run build_runner build` after model changes
 - **NEVER** mix commodities in single screen - keep CPO/PK/POME separate
 
@@ -108,7 +107,7 @@ flutter build apk
 
 ## NOTES
 
-- API base URL: `http://172.30.64.121:8000/api/` (hardcoded in api_service.dart)
+- API base URL configured in `lib/config.dart` via `AppConfig.apiBaseUrl`
 - Photos sent as base64 strings
 - PK commodity has resampling counter (0/1/2)
 - Large input_*.dart files (500-1000 lines) - consider refactoring
