@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 
 import 'package:flutter_vcf/models/pk/response/qc_lab_pk_vehicles_response.dart';
 import 'input_lab_pk.dart';
@@ -25,7 +26,7 @@ class _QCLabPKPageState extends State<QCLabPKPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchTickets();
   }
 

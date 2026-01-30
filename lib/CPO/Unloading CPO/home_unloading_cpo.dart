@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import '../../login.dart';
 import 'unloading_cpo.dart';
 
@@ -34,8 +35,7 @@ class _HomeUnloadingCPOPageState extends State<HomeUnloadingCPOPage> {
   @override
   void initState() {
     super.initState();
-    final dio = Dio();
-    api = ApiService(dio);
+    api = ApiService(AppConfig.createDio());
     fetchUnloadingStatistics();
   }
 

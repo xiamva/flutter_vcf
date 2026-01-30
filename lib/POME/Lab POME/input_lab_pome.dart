@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pome/qc_lab_pome_vehicle.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
@@ -44,13 +45,7 @@ class _InputLabPOMEPageState extends State<InputLabPOMEPage> {
   void initState() {
     super.initState();
 
-    final dio = Dio()
-      ..interceptors.add(LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (obj) => debugPrint(obj.toString()),
-      ));
-    api = ApiService(dio);
+    api = ApiService(AppConfig.createDio(withLogging: true));
 
     // ==== DETEKSI HOLD ====
     debugPrint("lab_status POME: ${widget.model.labStatus}");

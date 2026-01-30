@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/response/qc_sampling_cpo_vehicles_response.dart';
 import 'package:flutter_vcf/models/qc_sampling_vehicle.dart'; 
 import 'add_cpo_data.dart';
@@ -30,7 +31,7 @@ class _AddSampleQCCPOPageState extends State<AddSampleQCCPOPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchVehiclePlates();
   }
 

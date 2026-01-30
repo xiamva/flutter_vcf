@@ -1,7 +1,7 @@
 import 'dart:developer';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pome/response/unloading_pome_response.dart';
 import 'package:flutter_vcf/models/pome/unloading_pome_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,9 +26,7 @@ class UnloadingPOMEPage extends StatefulWidget {
 class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
   int? selectedIndex;
 
-  final apiService = ApiService(
-    Dio(BaseOptions(contentType: "application/json")),
-  );
+  final apiService = ApiService(AppConfig.createDio());
 
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -96,10 +94,8 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddUnloadingPOMEPage(
-          userId: widget.userId,
-          token: widget.token,
-        ),
+        builder: (_) =>
+            AddUnloadingPOMEPage(userId: widget.userId, token: widget.token),
       ),
     );
     if (result != null) setState(() {});
@@ -110,10 +106,8 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => InputUnloadingPOMEPage(
-          model: model,
-          token: widget.token,
-        ),
+        builder: (_) =>
+            InputUnloadingPOMEPage(model: model, token: widget.token),
       ),
     );
 
@@ -137,8 +131,9 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
       ),
 
       body: FutureBuilder<UnloadingPOMEResponse>(
-        future: _getToken()
-            .then((t) => apiService.getUnloadingPomeData("Bearer $t")),
+        future: _getToken().then(
+          (t) => apiService.getUnloadingPomeData("Bearer $t"),
+        ),
         builder: (context, snapshot) {
           // LOADING
           if (snapshot.connectionState != ConnectionState.done) {
@@ -199,8 +194,10 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
                   }
                 },
                 child: Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   elevation: 2,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -230,11 +227,12 @@ class _UnloadingPOMEPageState extends State<UnloadingPOMEPage> {
                             // STATUS BADGE
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
                               decoration: BoxDecoration(
                                 color: statusColor(status).withOpacity(0.15),
-                                border:
-                                    Border.all(color: statusColor(status)),
+                                border: Border.all(color: statusColor(status)),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(

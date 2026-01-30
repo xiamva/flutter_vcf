@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
+import 'tiket/sp_tiket_manager_pome.dart';
+import 'tiket/lb_tiket_manager_pome.dart';
+import 'tiket/un_tiket_manager_pome.dart';
 
 class DataTrukPomePage extends StatefulWidget {
   const DataTrukPomePage({super.key});
@@ -37,7 +40,7 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     loadAll();
   }
 
@@ -166,6 +169,20 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
                           ["Total Truk Keluar", "$sampleKeluar"],
                         ],
                         buttonText: "Input Data Sample",
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          final token = prefs.getString("jwt_token") ?? prefs.getString("token") ?? "";
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SpTiketManagerPOMEPage(
+                                userId: "manager",
+                                token: token,
+                              ),
+                            ),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: 30),
@@ -180,6 +197,20 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
                           ["Total Truk Keluar", "$labKeluar"],
                         ],
                         buttonText: "Input Data QC Lab",
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          final token = prefs.getString("jwt_token") ?? prefs.getString("token") ?? "";
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => LbTiketManagerPOMEPage(
+                                userId: "manager",
+                                token: token,
+                              ),
+                            ),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: 30),
@@ -194,6 +225,20 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
                           ["Total Truk Keluar", "$unloadKeluar"],
                         ],
                         buttonText: "Input Data Unloading",
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          final token = prefs.getString("jwt_token") ?? prefs.getString("token") ?? "";
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => UnTiketManagerPOMEPage(
+                                userId: "manager",
+                                token: token,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -207,6 +252,7 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
     required String title,
     required List<List<String>> items,
     required String buttonText,
+    VoidCallback? onPressed,
   }) {
     return Container(
       width: double.infinity,
@@ -214,7 +260,7 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: 1.4),
+        border: Border.all(color: Colors.black),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,17 +274,24 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
           ),
           const SizedBox(height: 16),
           for (var item in items) _dashboardBox(title: item[0], value: item[1]),
+
           const SizedBox(height: 12),
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: Colors.grey[200],
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                elevation: 0,
               ),
-              onPressed: () {},
-              child: Text(buttonText, style: const TextStyle(color: Colors.white)),
+              onPressed: onPressed,
+              child: Text(
+                buttonText,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],
@@ -248,27 +301,11 @@ class _DataTrukPomePageState extends State<DataTrukPomePage> {
 
   Widget _dashboardBox({required String title, required String value}) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black, width: 1),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.black, width: 1),
-            ),
-            child: Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(title),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ]),
     );
   }
 }

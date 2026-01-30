@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 
 import 'package:flutter_vcf/models/pome/qc_lab_pome_vehicle.dart';
 import 'add_lab_pome.dart';
@@ -30,7 +31,7 @@ class _QCLabPOMEPageState extends State<QCLabPOMEPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchTickets();
   }
 

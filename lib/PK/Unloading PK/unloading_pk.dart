@@ -1,7 +1,7 @@
 import 'dart:developer';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pk/response/unloading_pk_response.dart';
 import 'package:flutter_vcf/models/pk/unloading_pk_model.dart' as model;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,11 +12,7 @@ class UnloadingPKPage extends StatefulWidget {
   final String userId;
   final String token;
 
-  const UnloadingPKPage({
-    super.key,
-    required this.userId,
-    required this.token,
-  });
+  const UnloadingPKPage({super.key, required this.userId, required this.token});
 
   @override
   State<UnloadingPKPage> createState() => _UnloadingPKPageState();
@@ -25,15 +21,12 @@ class UnloadingPKPage extends StatefulWidget {
 class _UnloadingPKPageState extends State<UnloadingPKPage> {
   int? selectedIndex;
 
-  final apiService = ApiService(
-    Dio(BaseOptions(contentType: "application/json")),
-  );
+  final apiService = ApiService(AppConfig.createDio());
 
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString("jwt_token") ?? widget.token;
   }
-
 
   String normalizedStatus(String? registStatus, String? unloadingStatus) {
     final reg = (registStatus ?? "").toLowerCase();
@@ -52,7 +45,6 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
     return reg.isNotEmpty ? reg : unload;
   }
 
-
   String displayStatus(String status) {
     switch (status) {
       case "hold_unloading":
@@ -67,7 +59,6 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
         return status.toUpperCase();
     }
   }
-
 
   Color statusColor(String status) {
     switch (status) {
@@ -103,10 +94,8 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddUnloadingPKPage(
-          userId: widget.userId,
-          token: widget.token,
-        ),
+        builder: (_) =>
+            AddUnloadingPKPage(userId: widget.userId, token: widget.token),
       ),
     );
 
@@ -117,10 +106,7 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => InputUnloadingPKPage(
-          model: data,
-          token: widget.token,
-        ),
+        builder: (_) => InputUnloadingPKPage(model: data, token: widget.token),
       ),
     );
 
@@ -128,8 +114,6 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
       setState(() => selectedIndex = index);
     }
   }
-
-  
 
   @override
   Widget build(BuildContext context) {
@@ -145,9 +129,7 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
         ],
       ),
       body: FutureBuilder<UnloadingPkResponse>(
-        future: _getToken().then(
-          (t) => apiService.getUnloadingPk("Bearer $t"),
-        ),
+        future: _getToken().then((t) => apiService.getUnloadingPk("Bearer $t")),
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -160,7 +142,6 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
 
           final trucks = snapshot.data?.data ?? [];
 
-        
           final unloadingTrucks = trucks.where((e) {
             final status = normalizedStatus(e.registStatus, e.unloadingStatus);
             return status == "qc_resampling" ||
@@ -175,14 +156,17 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
                 "Belum ada tiket kendaraan.",
                 style: TextStyle(color: Colors.black54, fontSize: 16),
               ),
-            ); 
+            );
           }
 
           return ListView.builder(
             itemCount: unloadingTrucks.length,
             itemBuilder: (_, index) {
               final t = unloadingTrucks[index];
-              final status = normalizedStatus(t.registStatus, t.unloadingStatus);
+              final status = normalizedStatus(
+                t.registStatus,
+                t.unloadingStatus,
+              );
 
               return GestureDetector(
                 onTap: () {
@@ -199,8 +183,10 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
                   }
                 },
                 child: Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   elevation: 2,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -232,8 +218,7 @@ class _UnloadingPKPageState extends State<UnloadingPKPage> {
                               ),
                               decoration: BoxDecoration(
                                 color: statusColor(status).withOpacity(0.15),
-                                border:
-                                    Border.all(color: statusColor(status)),
+                                border: Border.all(color: statusColor(status)),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(

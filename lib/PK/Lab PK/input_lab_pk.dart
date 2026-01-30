@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pk/response/qc_lab_pk_vehicles_response.dart';
 
 class InputLabPKPage extends StatefulWidget {
@@ -37,6 +38,7 @@ class _InputLabPKPageState extends State<InputLabPKPage> {
   bool isQcEnabled = true;
   bool isCameraEnabled = false;
   bool _forceNotRelab = false;
+  bool _isReloadingPhotos = false;
 
   /// File foto baru
   File? _image1, _image2, _image3, _image4;
@@ -64,16 +66,7 @@ class _InputLabPKPageState extends State<InputLabPKPage> {
   void initState() {
     super.initState();
 
-    final dio = Dio()
-      ..interceptors.add(
-        LogInterceptor(
-          requestBody: true,
-          responseBody: true,
-          logPrint: (obj) => debugPrint(obj.toString()),
-        ),
-      );
-
-    api = ApiService(dio);
+    api = ApiService(AppConfig.createDio(withLogging: true));
 
     final status = _derivePkStatus(widget.model);
     isHoldCase = status == "hold";
@@ -224,6 +217,24 @@ class _InputLabPKPageState extends State<InputLabPKPage> {
     } catch (e) {
       debugPrint("Load PK Lab Detail error: $e");
       setState(() => _isDetailLoaded = true);
+    }
+  }
+  
+  Future<void> _reloadOldPhotos() async {
+    if (_isReloadingPhotos) return;
+    setState(() => _isReloadingPhotos = true);
+    try {
+      await _loadLabPkDetail();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gambar berhasil dimuat ulang')),
+      );
+    } catch (e) {
+      debugPrint('Reload old photos error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat ulang gambar: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isReloadingPhotos = false);
     }
   }
   @override
@@ -502,7 +513,31 @@ Widget _buildRelabSection() {
 
         const SizedBox(height: 12),
 
-        const Text("Foto", style: TextStyle(fontWeight: FontWeight.w500)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Foto", style: TextStyle(fontWeight: FontWeight.w500)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isReloadingPhotos)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  IconButton(
+                    tooltip: 'Reload gambar',
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: () async {
+                      await _reloadOldPhotos();
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
         const SizedBox(height: 6),
         _readonlyPhotoGrid(photoUrls),
       ],
@@ -613,18 +648,38 @@ Widget _readonlyInputBox(String label, String value) {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              Checkbox(
-                value: isCameraEnabled,
-                onChanged: isQcEnabled
-                    ? (v) {
-                        setState(() {
-                          isCameraEnabled = v ?? false;
-                          if (!isCameraEnabled) {
-                            _image1 = _image2 = _image3 = _image4 = null;
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_isReloadingPhotos)
+                    const SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    IconButton(
+                      tooltip: 'Reload gambar',
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: () async {
+                        await _reloadOldPhotos();
+                      },
+                    ),
+
+                  Checkbox(
+                    value: isCameraEnabled,
+                    onChanged: isQcEnabled
+                        ? (v) {
+                            setState(() {
+                              isCameraEnabled = v ?? false;
+                              if (!isCameraEnabled) {
+                                _image1 = _image2 = _image3 = _image4 = null;
+                              }
+                            });
                           }
-                        });
-                      }
-                    : null,
+                        : null,
+                  ),
+                ],
               ),
             ],
           ),
@@ -878,8 +933,33 @@ Widget _readonlyInputBox(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Foto Sebelumnya (Readonly)",
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Foto Sebelumnya (Readonly)",
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isReloadingPhotos)
+                  const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  IconButton(
+                    tooltip: 'Reload gambar sebelumnya',
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: () async {
+                      await _reloadOldPhotos();
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+
         const SizedBox(height: 8),
 
         Row(
@@ -903,6 +983,10 @@ Widget _readonlyInputBox(String label, String value) {
                         child: Image.network(
                           url,
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint('Old image load error: $error');
+                            return const Icon(Icons.broken_image);
+                          },
                         ),
                       ),
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pk/response/qc_lab_pk_statistics_response.dart';
 import 'qc_lab_pk.dart';
 import '../../login.dart';
@@ -35,7 +36,7 @@ class _HomeLabPKPageState extends State<HomeLabPKPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchStats();
   }
 

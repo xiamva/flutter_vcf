@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/response/submit_qc_sampling_response.dart';
 
 class AddCPODataPage extends StatefulWidget {
@@ -49,7 +50,7 @@ class _AddCPODataPageState extends State<AddCPODataPage> {
 
   @override
   void initState() {
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     super.initState();
   }
 

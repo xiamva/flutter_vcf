@@ -1,7 +1,7 @@
 import 'dart:developer';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pk/response/unloading_pk_response.dart';
 import 'package:flutter_vcf/models/pk/unloading_pk_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,8 +24,9 @@ class AddUnloadingPKPage extends StatefulWidget {
 class _AddUnloadingPKPageState extends State<AddUnloadingPKPage> {
   String? selectedPlat;
 
-  late Future<UnloadingPkResponse> futureVehicles =
-      Future.value(UnloadingPkResponse(success: true, message: "", data: [], total: 0));
+  late Future<UnloadingPkResponse> futureVehicles = Future.value(
+    UnloadingPkResponse(success: true, message: "", data: [], total: 0),
+  );
 
   @override
   void initState() {
@@ -40,9 +41,7 @@ class _AddUnloadingPKPageState extends State<AddUnloadingPKPage> {
 
   void _loadData() async {
     final token = await _getToken();
-    final apiService = ApiService(
-      Dio(BaseOptions(contentType: "application/json")),
-    );
+    final apiService = ApiService(AppConfig.createDio());
 
     setState(() {
       futureVehicles = apiService.getUnloadingPk("Bearer $token");
@@ -56,10 +55,7 @@ class _AddUnloadingPKPageState extends State<AddUnloadingPKPage> {
         title: const Text('Tambah Unloading PK'),
         backgroundColor: Colors.blue,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
       ),
 
@@ -76,13 +72,15 @@ class _AddUnloadingPKPageState extends State<AddUnloadingPKPage> {
           }
 
           final data = snapshot.data?.data ?? [];
-          
+
           final readyVehicles = data.where((e) {
             return (e.registStatus ?? "").toLowerCase() == "unloading";
           }).toList();
 
-          final uniquePlates =
-              readyVehicles.map((e) => e.plateNumber).toSet().toList();
+          final uniquePlates = readyVehicles
+              .map((e) => e.plateNumber)
+              .toSet()
+              .toList();
 
           if (readyVehicles.isEmpty) {
             return const Center(
@@ -116,8 +114,9 @@ class _AddUnloadingPKPageState extends State<AddUnloadingPKPage> {
                   ),
                   value: selectedPlat,
                   items: uniquePlates.map((plate) {
-                    final item =
-                        readyVehicles.firstWhere((e) => e.plateNumber == plate);
+                    final item = readyVehicles.firstWhere(
+                      (e) => e.plateNumber == plate,
+                    );
 
                     return DropdownMenuItem(
                       value: plate,

@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/response/unloading_cpo_response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'input_unloading_cpo.dart';
@@ -40,7 +41,7 @@ class _AddUnloadingCPOPageState extends State<AddUnloadingCPOPage> {
   void _loadData() async {
     final token = await _getToken();
     final apiService =
-        ApiService(Dio(BaseOptions(contentType: "application/json")));
+        ApiService(AppConfig.createDio());
 
     setState(() {
       futureVehicles = apiService.getPosts("Bearer $token");

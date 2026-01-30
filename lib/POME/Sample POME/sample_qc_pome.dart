@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pome/response/qc_sampling_pome_vehicles_response.dart';
 import 'add_sample_qc_pome.dart';
 
@@ -31,8 +32,7 @@ class _SampleQCPOMEPageState extends State<SampleQCPOMEPage> {
   @override
   void initState() {
     super.initState();
-    final dio = Dio();
-    api = ApiService(dio);
+    api = ApiService(AppConfig.createDio());
 
     loadCachedTickets().then((_) => fetchTickets());
   }

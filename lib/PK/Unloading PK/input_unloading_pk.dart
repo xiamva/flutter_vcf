@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/master/response/master_hole_response.dart';
 import 'package:flutter_vcf/models/master/response/master_tank_response.dart';
 import 'package:flutter_vcf/models/pk/unloading_pk_model.dart';
@@ -31,6 +33,7 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
   bool _isSubmitting = false;
   String pageMode = 'normal';
   bool _isCameraEnabled = false;
+  bool _isReloadingExisting = false;
 
   File? _image1, _image2, _image3, _image4;
   final ImagePicker picker = ImagePicker();
@@ -44,7 +47,6 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
   int? initialTankId;
   int? initialHoleId;
   String? initialRemarks;
-  
 
   int? reSelectedTankId;
   int? reSelectedHoleId;
@@ -54,17 +56,10 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
   bool unloadingStarted = false;
   bool disableHoldButton = false;
 
-
   @override
   void initState() {
     super.initState();
-    _dio = Dio()
-      ..interceptors.add(LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseBody: true,
-      ));
+    _dio = AppConfig.createDio(withLogging: !kReleaseMode);
     api = ApiService(_dio);
     _loadMasterData().whenComplete(() => _loadExistingUnloading());
   }
@@ -141,19 +136,18 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
         _isCameraEnabled = false;
 
         if (unloadingExists) {
-        initialTankId = d.tankId;
-        initialHoleId = d.holeId;
-        initialRemarks = d.remarks ?? "";
-        remarksCtrl.text = d.remarks ?? "";
-        final allPhotos = (d.photos ?? [])
-            .map((p) => p.url ?? "")
-            .where((u) => u.isNotEmpty)
-            .toList();
-        _existingPhotos = allPhotos.length > 4
-            ? allPhotos.sublist(allPhotos.length - 4)
-            : allPhotos;
-      }
-
+          initialTankId = d.tankId;
+          initialHoleId = d.holeId;
+          initialRemarks = d.remarks ?? "";
+          remarksCtrl.text = d.remarks ?? "";
+          final allPhotos = (d.photos ?? [])
+              .map((p) => p.url ?? "")
+              .where((u) => u.isNotEmpty)
+              .toList();
+          _existingPhotos = allPhotos.length > 4
+              ? allPhotos.sublist(allPhotos.length - 4)
+              : allPhotos;
+        }
 
         if (unloadingStatus == "hold" && regStatus == "qc_resampling") {
           pageMode = 'hold_resampling';
@@ -178,11 +172,7 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
     if (id == null) return "-";
     final t = tanks.firstWhere(
       (x) => x.id == id,
-      orElse: () => TankItem(
-        id: id,
-        tank_code: "T$id",
-        tank_name: "Tank $id",
-      ),
+      orElse: () => TankItem(id: id, tank_code: "T$id", tank_name: "Tank $id"),
     );
     return "${t.tank_code} — ${t.tank_name}";
   }
@@ -191,11 +181,7 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
     if (id == null) return "-";
     final h = holes.firstWhere(
       (x) => x.id == id,
-      orElse: () => HoleItem(
-        id: id,
-        hole_code: "H$id",
-        hole_name: "Hole $id",
-      ),
+      orElse: () => HoleItem(id: id, hole_code: "H$id", hole_name: "Hole $id"),
     );
     return "${h.hole_code} — ${h.hole_name}";
   }
@@ -211,9 +197,9 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
     ].request();
 
     if (!statuses[Permission.camera]!.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Akses kamera ditolak")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Akses kamera ditolak")));
       return;
     }
 
@@ -240,9 +226,12 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
   }
 
   List<String> _collectPhotosBase64({int max = 4}) {
-    final imgs = [_image1, _image2, _image3, _image4]
-        .where((e) => e != null)
-        .toList();
+    final imgs = [
+      _image1,
+      _image2,
+      _image3,
+      _image4,
+    ].where((e) => e != null).toList();
 
     final picked = imgs.take(max).map((f) {
       final bytes = f!.readAsBytesSync();
@@ -276,15 +265,18 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
     }
 
     if (chosenTank == null || chosenHole == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Pilih Tank dan Hole dulu")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Pilih Tank dan Hole dulu")));
       return false;
     }
 
-    final imgs = [_image1, _image2, _image3, _image4]
-        .where((e) => e != null)
-        .toList();
+    final imgs = [
+      _image1,
+      _image2,
+      _image3,
+      _image4,
+    ].where((e) => e != null).toList();
 
     if (imgs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -332,23 +324,35 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
     );
   }
 
- Future<void> _confirmAndSubmit(String status) async {
-  if (status == "hold" && disableHoldButton) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Resampling sudah maksimal")),
-    );
-    return;
+  Future<void> _reloadExistingPhotos() async {
+    if (_isReloadingExisting) return;
+    setState(() => _isReloadingExisting = true);
+    try {
+      await _loadExistingUnloading();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gambar berhasil dimuat ulang')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memuat ulang gambar: $e')));
+    } finally {
+      if (mounted) setState(() => _isReloadingExisting = false);
+    }
   }
 
-  if (!await _startUnloading()) return;
+  Future<void> _confirmAndSubmit(String status) async {
+    if (status == "hold" && disableHoldButton) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Resampling sudah maksimal")),
+      );
+      return;
+    }
 
-  await _showConfirmDialog(
-    title: "Konfirmasi Simpan",
-    message: "Apakah anda yakin menyimpan data Unloading PK?",
-    onConfirm: () => _submit(status),
-  );
-}
+    if (!await _startUnloading()) return;
 
+    await _showConfirmDialog(
+      title: "Konfirmasi Simpan",
+      message: "Apakah anda yakin menyimpan data Unloading PK?",
+      onConfirm: () => _submit(status),
+    );
+  }
 
   Future<void> _confirmAndFinish() async {
     if (!await _startUnloading()) return;
@@ -425,23 +429,19 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? "Gagal submit unloading PK"),
-          ),
+          SnackBar(content: Text(res.message ?? "Gagal submit unloading PK")),
         );
       }
     } on DioException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            "Error: ${e.response?.data['message'] ?? e.message}",
-          ),
+          content: Text("Error: ${e.response?.data['message'] ?? e.message}"),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -462,10 +462,10 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
     );
   }
 
-
   Widget _photoBox(int index, File? f) {
     final bool canTap =
-        _isCameraEnabled && (pageMode == 'hold_unloading' || pageMode == 'normal');
+        _isCameraEnabled &&
+        (pageMode == 'hold_unloading' || pageMode == 'normal');
 
     return GestureDetector(
       onTap: canTap ? () => _getImage(index) : null,
@@ -504,22 +504,14 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: Colors.black26),
             ),
-            child: Text(
-              value ?? "-",
-              style: TextStyle(fontSize: baseFont),
-            ),
+            child: Text(value ?? "-", style: TextStyle(fontSize: baseFont)),
           ),
         ],
       ),
     );
   }
 
-  Widget _btn(
-    String text,
-    Color c,
-    VoidCallback onTap, {
-    bool enabled = true,
-  }) {
+  Widget _btn(String text, Color c, VoidCallback onTap, {bool enabled = true}) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: enabled ? c : Colors.grey,
@@ -550,10 +542,7 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
         backgroundColor: Colors.blue,
         title: Text(
           "Input Unloading PK",
-          style: TextStyle(
-            fontSize: baseFont + 4,
-            color: Colors.black,
-          ),
+          style: TextStyle(fontSize: baseFont + 4, color: Colors.black),
         ),
       ),
       body: Container(
@@ -565,12 +554,28 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
             const SizedBox(height: 12),
 
             if (unloadingStarted) ...[
-              Text(
-                "UNLOADING SEBELUMNYA",
-                style: TextStyle(
-                  fontSize: baseFont + 1,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "UNLOADING SEBELUMNYA",
+                    style: TextStyle(
+                      fontSize: baseFont + 1,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  _isReloadingExisting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : IconButton(
+                          tooltip: 'Reload existing photos',
+                          icon: const Icon(Icons.refresh, size: 20),
+                          onPressed: () async => await _reloadExistingPhotos(),
+                        ),
+                ],
               ),
               const SizedBox(height: 8),
               _fieldReadOnly("Pilih Tank", _tankLabel(initialTankId)),
@@ -593,13 +598,14 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
                           showDialog(
                             context: context,
                             builder: (_) => Dialog(
-                              child: InteractiveViewer(
-                                child: Image.network(
-                                  url,
-                                  fit: BoxFit.contain,
+                                child: InteractiveViewer(
+                                  child: Image.network(
+                                    url,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (c, e, s) => const Icon(Icons.broken_image),
+                                  ),
                                 ),
                               ),
-                            ),
                           );
                         },
                         child: _initialPhotoThumb(url),
@@ -718,12 +724,7 @@ class _InputUnloadingPKPageState extends State<InputUnloadingPKPage> {
                     () => _confirmAndSubmit("hold"),
                     enabled: !disableHoldButton,
                   ),
-                  _btn(
-                    "Finish",
-                    Colors.blue,
-                    _confirmAndFinish,
-                    enabled: true,
-                  ),
+                  _btn("Finish", Colors.blue, _confirmAndFinish, enabled: true),
                   _btn(
                     "Reject",
                     Colors.red,

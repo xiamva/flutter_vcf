@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pome/response/submit_qc_sampling_pome_response.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
@@ -48,7 +49,7 @@ class _AddPOMEDataPageState extends State<AddPOMEDataPage> {
 
   @override
   void initState() {
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     super.initState();
   }
 

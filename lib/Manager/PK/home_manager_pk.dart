@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import '../../../login.dart';
 import 'dart:async';
 
 import '../CPO/home_manager.dart';
 import '../POME/home_manager_pome.dart';
 import 'data_truk_pk.dart';
+import 'tiket/sp_tiket_manager_pk.dart';
+import 'tiket/lb_tiket_manager_pk.dart';
+import 'tiket/un_tiket_manager_pk.dart';
 
 class HomeManagerPk extends StatefulWidget {
   const HomeManagerPk({super.key});
@@ -31,6 +35,15 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
   int totalSampleKeluar = 0;
   int totalLabKeluar = 0;
   int totalUnloadingKeluar = 0;
+
+  // Manager check statistics for carousel
+  int samplingPendingChecks = 0;
+  int labPendingChecks = 0;
+  int unloadingPendingChecks = 0;
+
+  int samplingApprovedChecks = 0;
+  int labApprovedChecks = 0;
+  int unloadingApprovedChecks = 0;
 
   // ---------------- DATE FORMAT ----------------
   String getTanggalIndonesia() {
@@ -80,7 +93,7 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
 
   // ======================= LOAD PK STATISTICS ===========================
   Future<void> loadStatistics() async {
-    final api = ApiService(Dio());
+    final api = ApiService(AppConfig.createDio());
     final prefs = await SharedPreferences.getInstance();
 
     String? savedToken =
@@ -292,11 +305,32 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
                         final page = index % 3;
 
                         if (page == 0) {
-                          return _imageCard("QC SAMPLE PK", "assets/pk.jpg", imageHeight);
+                          return _stageCard(
+                            "QC Sampling PK",
+                            "assets/pk.jpg",
+                            imageHeight,
+                            totalSampleKeluar,
+                            samplingPendingChecks,
+                            samplingApprovedChecks,
+                          );
                         } else if (page == 1) {
-                          return _imageCard("QC SAMPLE CPO", "assets/cpo.jpg", imageHeight);
+                          return _stageCard(
+                            "QC Lab PK",
+                            "assets/pk.jpg",
+                            imageHeight,
+                            totalLabKeluar,
+                            labPendingChecks,
+                            labApprovedChecks,
+                          );
                         }
-                        return _imageCard("QC SAMPLE POME", "assets/pome.jpg", imageHeight);
+                        return _stageCard(
+                          "Unloading PK",
+                          "assets/pk.jpg",
+                          imageHeight,
+                          totalUnloadingKeluar,
+                          unloadingPendingChecks,
+                          unloadingApprovedChecks,
+                        );
                       },
                     ),
 
@@ -309,7 +343,7 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
               const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(3, (i) => _dot(i)),
+                children: List.generate(1, (i) => _dot(i)),
               ),
 
               const SizedBox(height: 40),
@@ -457,15 +491,66 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeInOut,
             child: showInputOptions
-                ? Column(
-                    children: [
-                      _optionItem("Sample", Icons.science),
-                      const SizedBox(height: 10),
-                      _optionItem("QC Lab", Icons.biotech),
-                      const SizedBox(height: 10),
-                      _optionItem("Unloading", Icons.local_shipping),
-                    ],
-                  )
+                    ? Column( 
+                        children: [ 
+                      _optionItem(
+                        "Sample",
+                        Icons.science,
+                        onTap: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          final token = prefs.getString("jwt_token") ?? prefs.getString("token") ?? "";
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SpTiketManagerPKPage(
+                                userId: "manager",
+                                token: token,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                          const SizedBox(height: 10), 
+                      _optionItem(
+                        "QC Lab",
+                        Icons.biotech,
+                        onTap: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          final token = prefs.getString("jwt_token") ?? prefs.getString("token") ?? "";
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => LbTiketManagerPKPage(
+                                userId: "manager",
+                                token: token,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                          const SizedBox(height: 10), 
+                      _optionItem(
+                        "Unloading",
+                        Icons.local_shipping,
+                        onTap: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          final token = prefs.getString("jwt_token") ?? prefs.getString("token") ?? "";
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => UnTiketManagerPKPage(
+                                userId: "manager",
+                                token: token,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                        ], 
+                      ) 
                 : const SizedBox(),
           ),
         ],
@@ -473,8 +558,8 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
     );
   }
 
-  Widget _optionItem(String title, IconData icon) {
-    return Container(
+  Widget _optionItem(String title, IconData icon, {VoidCallback? onTap}) {
+    final child = Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
@@ -491,6 +576,12 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return InkWell(onTap: onTap, child: child);
+    }
+
+    return child;
   }
 
   // ------------------ DOT ------------------
@@ -528,8 +619,15 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
     );
   }
 
-  // ------------------ IMAGE CARD ------------------
-  Widget _imageCard(String label, String path, double height) {
+  // ------------------ STAGE CARD (with statistics) ------------------
+  Widget _stageCard(
+    String label,
+    String imagePath,
+    double height,
+    int totalKeluar,
+    int pendingChecks,
+    int approvedChecks,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: ClipRRect(
@@ -540,29 +638,101 @@ class _HomeManagerPkState extends State<HomeManagerPk> {
               height: height,
               width: double.infinity,
               color: Colors.grey.shade200,
-              child: Image.asset(path, fit: BoxFit.cover),
+              child: Image.asset(imagePath, fit: BoxFit.cover),
             ),
+            // Gradient overlay for better text readability
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 80,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
+                  ),
+                ),
+              ),
+            ),
+            // Stage label at top
             Positioned(
               top: 16,
               left: 16,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.75),
+                  color: Colors.white.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.blue,
                   ),
+                ),
+              ),
+            ),
+            // Statistics at bottom
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _statItem("Total Keluar", "$totalKeluar", Colors.blue),
+                        _statItem("Pending", "$pendingChecks", Colors.orange),
+                        _statItem("Approved", "$approvedChecks", Colors.green),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _statItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

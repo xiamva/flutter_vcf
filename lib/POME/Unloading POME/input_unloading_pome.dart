@@ -8,6 +8,7 @@ import 'package:flutter_vcf/models/master/response/master_tank_response.dart';
 import 'package:flutter_vcf/models/master/response/master_hole_response.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_vcf/config.dart';
 
 class InputUnloadingPOMEPage extends StatefulWidget {
   final String token;
@@ -50,14 +51,7 @@ class _InputUnloadingPOMEPageState extends State<InputUnloadingPOMEPage> {
   @override
   void initState() {
     super.initState();
-    _dio = Dio()
-      ..options.baseUrl = 'http://172.30.64.69:8000/api/'
-      ..interceptors.add(LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseBody: true,
-      ));
+    _dio = AppConfig.createDio(withLogging: true);
     api = ApiService(_dio);
 
     _loadMasterData();

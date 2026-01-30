@@ -1,7 +1,7 @@
 import 'dart:developer';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/response/unloading_cpo_response.dart';
 import 'package:flutter_vcf/models/unloading_cpo_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,9 +25,7 @@ class UnloadingCPOPage extends StatefulWidget {
 class _UnloadingCPOPageState extends State<UnloadingCPOPage> {
   int? selectedIndex;
 
-  final apiService = ApiService(
-    Dio(BaseOptions(contentType: "application/json")),
-  );
+  final apiService = ApiService(AppConfig.createDio());
 
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -91,10 +89,8 @@ class _UnloadingCPOPageState extends State<UnloadingCPOPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddUnloadingCPOPage(
-          userId: widget.userId,
-          token: widget.token,
-        ),
+        builder: (_) =>
+            AddUnloadingCPOPage(userId: widget.userId, token: widget.token),
       ),
     );
     if (result != null) setState(() {});
@@ -105,10 +101,8 @@ class _UnloadingCPOPageState extends State<UnloadingCPOPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => InputUnloadingCPOPage(
-          model: model,
-          token: widget.token,
-        ),
+        builder: (_) =>
+            InputUnloadingCPOPage(model: model, token: widget.token),
       ),
     );
 
@@ -161,7 +155,7 @@ class _UnloadingCPOPageState extends State<UnloadingCPOPage> {
                 "Belum ada tiket kendaraan.",
                 style: TextStyle(color: Colors.black54, fontSize: 16),
               ),
-             );
+            );
           }
 
           return ListView.builder(
@@ -188,8 +182,10 @@ class _UnloadingCPOPageState extends State<UnloadingCPOPage> {
                   }
                 },
                 child: Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   elevation: 2,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -219,11 +215,12 @@ class _UnloadingCPOPageState extends State<UnloadingCPOPage> {
                             // STATUS BADGE
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
                               decoration: BoxDecoration(
                                 color: statusColor(status).withOpacity(0.15),
-                                border:
-                                    Border.all(color: statusColor(status)),
+                                border: Border.all(color: statusColor(status)),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(

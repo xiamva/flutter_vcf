@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pome/response/unloading_pome_response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'input_unloading_pome.dart';
@@ -39,7 +40,7 @@ class _AddUnloadingPOMEPageState extends State<AddUnloadingPOMEPage> {
 
   void _loadData() async {
     final token = await _getToken();
-    final apiService = ApiService(Dio(BaseOptions(contentType: "application/json")));
+    final apiService = ApiService(AppConfig.createDio());
 
     setState(() {
       futureVehicles = apiService.getUnloadingPomeData("Bearer $token");

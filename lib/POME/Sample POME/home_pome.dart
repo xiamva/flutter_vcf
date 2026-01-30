@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pome/response/qc_sampling_pome_statistics_response.dart';
 import 'sample_qc_pome.dart';
 import '../../login.dart';
@@ -31,7 +32,7 @@ class _HomePOMEPageState extends State<HomePOMEPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     fetchStats();
   }
 

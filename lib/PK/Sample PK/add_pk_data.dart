@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_vcf/PK/Sample%20PK/sample_qc_pk.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pk/response/qc_sampling_pk_sample_response.dart';
 
 class AddPKDataPage extends StatefulWidget {
@@ -41,6 +43,12 @@ class _AddPKDataPageState extends State<AddPKDataPage> {
   late ApiService api;
   bool loading = true;
 
+  // simple in-memory cache for downloaded images to avoid repeated network hits
+  final Map<String, Uint8List> _imageCache = {};
+
+  // track which section counters are currently reloading
+  final Set<int> _reloadingCounters = {};
+
   List<QcSamplingPkRecord> records = [];
 
   int? activeCounter;
@@ -52,7 +60,7 @@ class _AddPKDataPageState extends State<AddPKDataPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     loadDetail();
   }
 
@@ -195,18 +203,88 @@ Widget _oldPhotoBox(QcSamplingPkPhoto p) {
 
   return ClipRRect(
     borderRadius: BorderRadius.circular(8),
-    child: Image.network(
-      fixedUrl,
-      fit: BoxFit.cover,
-      headers: {"Connection": "close"},
-      errorBuilder: (BuildContext context, Object exception, StackTrace? stackTrace) {
-        debugPrint('Image.network load error: $exception');
-        if (stackTrace != null) debugPrint(stackTrace.toString());
+    child: FutureBuilder<Uint8List?>(
+      future: _fetchImageBytes(fixedUrl),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Container(
+            color: Colors.grey[200],
+            width: double.infinity,
+            height: double.infinity,
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+
+        final bytes = snap.data;
+        if (bytes != null && bytes.isNotEmpty) {
+          return Image.memory(bytes, fit: BoxFit.cover);
+        }
 
         return const Icon(Icons.broken_image);
       },
     ),
   );
+}
+
+/// Try to download image bytes with simple retry and cache.
+Future<Uint8List?> _fetchImageBytes(String url) async {
+  try {
+    if (_imageCache.containsKey(url)) return _imageCache[url];
+
+    // Use a plain Dio instance to fetch raw bytes with a short timeout.
+    final dio = Dio();
+    dio.options.receiveTimeout = Duration(seconds: 10); // 10s
+    dio.options.connectTimeout = Duration(seconds: 5); // 5s
+
+    const int maxAttempts = 2;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final resp = await dio.get<List<int>>(
+          url,
+          options: Options(responseType: ResponseType.bytes, headers: {"Connection": "close"}),
+        );
+
+        final data = Uint8List.fromList(resp.data ?? <int>[]);
+        if (data.isNotEmpty) {
+          _imageCache[url] = data;
+          return data;
+        }
+      } catch (e) {
+        debugPrint('Image fetch attempt $attempt failed for $url: $e');
+        if (attempt == maxAttempts) rethrow;
+        await Future.delayed(const Duration(milliseconds: 250));
+      }
+    }
+  } catch (e) {
+    debugPrint('Failed to fetch image bytes: $e');
+  }
+  return null;
+}
+
+Future<void> _reloadPhotosForCounter(int counter) async {
+  setState(() {
+    _reloadingCounters.add(counter);
+  });
+
+  try {
+    final rec = _record(counter);
+    final photos = rec?.photos ?? [];
+    for (var p in photos) {
+      final key = p.url.isNotEmpty ? Uri.parse(p.url).toString() : '';
+      if (key.isNotEmpty) _imageCache.remove(key);
+    }
+
+    // reload records from server (will refresh photo URLs)
+    await loadDetail();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reload error: $e')));
+  } finally {
+    if (mounted) {
+      setState(() {
+        _reloadingCounters.remove(counter);
+      });
+    }
+  }
 }
 
 
@@ -347,22 +425,43 @@ Widget _oldPhotoBox(QcSamplingPkPhoto p) {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ),
-            if (isActiveEditable)
-              Checkbox(
-                value: checkboxValue,
-                onChanged: (val) {
-                  setState(() {
-                    sectionChecked[counter] = val ?? false;
-                  });
-                },
-              ),
+
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_reloadingCounters.contains(counter))
+                  const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  IconButton(
+                    tooltip: 'Reload gambar',
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: () => _reloadPhotosForCounter(counter),
+                  ),
+
+                if (isActiveEditable)
+                  Checkbox(
+                    value: checkboxValue,
+                    onChanged: (val) {
+                      setState(() {
+                        sectionChecked[counter] = val ?? false;
+                      });
+                    },
+                  ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 6),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_vcf/api_service.dart';
+import 'package:flutter_vcf/config.dart';
 import 'package:flutter_vcf/models/pk/response/qc_sampling_pk_vehicles_response.dart';
 import 'add_sample_qc_pk.dart';
 import 'add_pk_data.dart';
@@ -33,7 +34,7 @@ class _SampleQCPKPageState extends State<SampleQCPKPage> {
   @override
   void initState() {
     super.initState();
-    api = ApiService(Dio());
+    api = ApiService(AppConfig.createDio());
     loadCachedTickets().then((_) => fetchTickets());
   }
 
